@@ -1,0 +1,10 @@
+.idea
+*.txt
+config.yml
+*.db
+test*
+*.csv
+*.pbix
+*.sql
+*.pyc
+taller/

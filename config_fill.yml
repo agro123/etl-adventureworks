@@ -1,0 +1,21 @@
+CO_SA:
+  drivername: postgresql
+  dbname: colombiasaludable
+  user: postgres
+  password:
+  host: localhost
+  port:
+
+ETL_PRO:
+  drivername: postgresql
+  dbname: etl_process
+  user: postgres
+  password:
+  host: localhost
+  port:
+
+LOAD_DIMENSIONS:
+  True
+
+medicamentos:
+  sources/medicamentos.xls
