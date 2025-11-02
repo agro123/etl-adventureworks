@@ -7,4 +7,5 @@ test*
 *.pbix
 *.sql
 *.pyc
-taller/
+venv/
+example/
