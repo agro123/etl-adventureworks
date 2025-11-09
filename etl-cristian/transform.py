@@ -2,18 +2,35 @@ import pandas as pd
 from datetime import date
 import numpy as np
 import holidays
+from deep_translator import GoogleTranslator
 
 from utils import parse_demographics
 
 def transform_product_category(df_category: pd.DataFrame) -> pd.DataFrame:
     """Transforma los datos de categorías de producto al formato DimProductCategory."""
+
+    # Renombrar columnas al formato estándar
     dim_product_category = df_category.rename(columns={
         "productcategory_bk": "productcategoryalternatekey",
         "productcategory_name": "englishproductcategoryname"
     })
-    dim_product_category["spanishproductcategoryname"] = dim_product_category["englishproductcategoryname"]
-    dim_product_category["frenchproductcategoryname"] = dim_product_category["englishproductcategoryname"]
-    dim_product_category["saved"] = date.today()
+
+    translator_es = GoogleTranslator(source='en', target='es')
+    translator_fr = GoogleTranslator(source='en', target='fr')
+
+    # Función auxiliar para traducir de forma segura
+    def safe_translate(translator, text):
+        try:
+            return translator.translate(text)
+        except Exception:
+            return text 
+
+    # Aplicar traducciones
+    dim_product_category["spanishproductcategoryname"] = dim_product_category['englishproductcategoryname'].apply(lambda x: safe_translate(translator_es, x))
+    dim_product_category["frenchproductcategoryname"] = dim_product_category['englishproductcategoryname'].apply(lambda x: safe_translate(translator_fr, x))
+    if "modifieddate" in dim_product_category.columns:
+        dim_product_category.drop("modifieddate", axis=1, inplace=True)
+
     return dim_product_category
 
 def transform_product_subcategory(df_subcat: pd.DataFrame) -> pd.DataFrame:
@@ -187,7 +204,7 @@ def transform_fact_internet_sales(df_fact: pd.DataFrame) -> pd.DataFrame:
     fact_sales["productkey"] = fact_sales["productkey"].fillna(-1).astype(int)
     fact_sales["customerkey"] = fact_sales["customerkey"].fillna(-1).astype(int)
     fact_sales["promotionkey"] = fact_sales["promotionkey"].fillna(-1).astype(int)
-    fact_sales["currencykey"] = 
+    # fact_sales["currencykey"] = 0
     fact_sales["salesterritorykey"] = fact_sales["salesterritorykey"].fillna(-1).astype(int)
 
     fact_sales = fact_sales.dropna(subset=["orderdate", "salesordernumber"])
