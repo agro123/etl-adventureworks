@@ -6,6 +6,13 @@ from deep_translator import GoogleTranslator
 
 from utils import parse_demographics
 
+# Función auxiliar para traducir de forma segura
+def safe_translate(translator, text):
+        try:
+            return translator.translate(text)
+        except Exception:
+            return text 
+
 def transform_product_category(df_category: pd.DataFrame) -> pd.DataFrame:
     """Transforma los datos de categorías de producto al formato DimProductCategory."""
 
@@ -18,16 +25,10 @@ def transform_product_category(df_category: pd.DataFrame) -> pd.DataFrame:
     translator_es = GoogleTranslator(source='en', target='es')
     translator_fr = GoogleTranslator(source='en', target='fr')
 
-    # Función auxiliar para traducir de forma segura
-    def safe_translate(translator, text):
-        try:
-            return translator.translate(text)
-        except Exception:
-            return text 
-
     # Aplicar traducciones
     dim_product_category["spanishproductcategoryname"] = dim_product_category['englishproductcategoryname'].apply(lambda x: safe_translate(translator_es, x))
     dim_product_category["frenchproductcategoryname"] = dim_product_category['englishproductcategoryname'].apply(lambda x: safe_translate(translator_fr, x))
+
     if "modifieddate" in dim_product_category.columns:
         dim_product_category.drop("modifieddate", axis=1, inplace=True)
 
@@ -40,9 +41,15 @@ def transform_product_subcategory(df_subcat: pd.DataFrame) -> pd.DataFrame:
         "productsubcategory_name": "englishproductsubcategoryname",
         "productcategory_bk": "productcategorykey"
     })
-    dim_product_subcat["spanishproductsubcategoryname"] = dim_product_subcat["englishproductsubcategoryname"]
-    dim_product_subcat["frenchproductsubcategoryname"] = dim_product_subcat["englishproductsubcategoryname"]
-    dim_product_subcat["saved"] = date.today()
+    translator_es = GoogleTranslator(source='en', target='es')
+    translator_fr = GoogleTranslator(source='en', target='fr')
+
+    # Aplicar traducciones
+    dim_product_subcat["spanishproductsubcategoryname"] = dim_product_subcat['englishproductsubcategoryname'].apply(lambda x: safe_translate(translator_es, x))
+    dim_product_subcat["frenchproductsubcategoryname"] = dim_product_subcat['englishproductsubcategoryname'].apply(lambda x: safe_translate(translator_fr, x))
+
+    if "modifieddate" in dim_product_subcat.columns:
+        dim_product_subcat.drop("modifieddate", axis=1, inplace=True)
     return dim_product_subcat
 
 def transform_product(df_product: pd.DataFrame) -> pd.DataFrame:

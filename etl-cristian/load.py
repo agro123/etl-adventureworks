@@ -20,6 +20,8 @@ def load_table(
     :param schema : str
         Esquema del DW. Por defecto 'public'.
     """
+
+    print(f"Cargando datos en {schema}.{table_name}...")
     if df.empty:
         print(f"No hay datos para cargar en {schema}.{table_name}")
         return
@@ -51,6 +53,8 @@ def load_table(
                 chunksize=5000
             )
         print(f"{len(new_rows)} registros nuevos insertados en {schema}.{table_name}")
+
+        print("Carga completada.")
     
     except Exception as e:
         print(f"Error al cargar {schema}.{table_name}: {e}")
