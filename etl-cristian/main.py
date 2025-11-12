@@ -133,7 +133,7 @@ if has_new_fact_data(conne=olap_conn, fact_table="factinternetsales"):
             key_columns=["productalternatekey"],
         )
         # Load dimSalesTerritory
-        load_table(
+        ''' load_table(
             dim_sales_territory,
             olap_conn,
             "dimsalesterritory",
@@ -173,7 +173,7 @@ if has_new_fact_data(conne=olap_conn, fact_table="factinternetsales"):
             olap_conn,
             "dimdate",
             key_columns=["datekey"],
-        )
+        ) '''
         print('Fin carga de dimensiones para FactInternetSales...')
 
     print('Extrayendo información para hecho FactInternetSales...')

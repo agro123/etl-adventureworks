@@ -15,7 +15,7 @@ def safe_translate(translator, text):
 
 def transform_product_category(df_category: pd.DataFrame) -> pd.DataFrame:
     """Transforma los datos de categorías de producto al formato DimProductCategory."""
-
+    print("Transformando DimProductCategory...")
     # Renombrar columnas al formato estándar
     dim_product_category = df_category.rename(columns={
         "productcategory_bk": "productcategoryalternatekey",
@@ -31,11 +31,12 @@ def transform_product_category(df_category: pd.DataFrame) -> pd.DataFrame:
 
     if "modifieddate" in dim_product_category.columns:
         dim_product_category.drop("modifieddate", axis=1, inplace=True)
-
+    print("DimProductCategory transformado.")
     return dim_product_category
 
 def transform_product_subcategory(df_subcat: pd.DataFrame) -> pd.DataFrame:
     """Transforma los datos de subcategorías al formato DimProductSubCategory."""
+    print("Transformando DimProductSubCategory...")
     dim_product_subcat = df_subcat.rename(columns={
         "productsubcategory_bk": "productsubcategoryalternatekey",
         "productsubcategory_name": "englishproductsubcategoryname",
@@ -50,32 +51,52 @@ def transform_product_subcategory(df_subcat: pd.DataFrame) -> pd.DataFrame:
 
     if "modifieddate" in dim_product_subcat.columns:
         dim_product_subcat.drop("modifieddate", axis=1, inplace=True)
+    print("DimProductSubCategory transformado.")
     return dim_product_subcat
 
 def transform_product(df_product: pd.DataFrame) -> pd.DataFrame:
     """Transforma los datos de productos al formato DimProduct."""
+    print("Transformando DimProduct...")
     dim_product = df_product.rename(columns={
-        "product_bk": "productalternatekey",
+        "productnumber": "productalternatekey",
         "product_name": "englishproductname",
-        "productsubcategory_bk": "productsubcategorykey"
+        "productsubcategory_bk": "productsubcategorykey",
+        "sellstartdate": "startdate",#Es la fecha de inicio de venta, pero algunos datos no concuerdan en el origen y otros tienen un día de mas.
+        "sellenddate": "enddate",# Es la fecha de final de venta, pero algunos datos no concuerdan en el origen y otros tienen un día de mas.
     })
-    dim_product["spanishproductname"] = dim_product["englishproductname"]
-    dim_product["frenchproductname"] = dim_product["englishproductname"]
-    dim_product["finishedgoodsflag"] = True
-    dim_product["saved"] = date.today()
+    translator_es = GoogleTranslator(source='en', target='es')
+    translator_fr = GoogleTranslator(source='en', target='fr')
+     # Aplicar traducciones
+    dim_product["spanishproductname"] = dim_product['englishproductname'].apply(lambda x: safe_translate(translator_es, x))
+    dim_product["frenchproductname"] = dim_product['englishproductname'].apply(lambda x: safe_translate(translator_fr, x))
+    dim_product["sizerange"] = 'NA' #investigar, No se define los rangos en el origen,  no hay documentación al respecto, buscar en la olap de ejemplo agrupando por esta columna. 
+    dim_product["modelname"] = 'NA' #No hay datos en el origen.
+    dim_product["largephoto"] = 'NA' # hay una columna en production.productphoto con un nombre similar  se obtiene de ahi. pero quizas no es necesario.
+
+    dim_product["status"] = np.where(
+    dim_product["enddate"].isna() | (dim_product["enddate"] == ""), 
+        "Current", 
+        "Discontinued"
+    ) #cuando existe una fecha de sellenddate el valor es "null: y cuando no "Current".
+
+    dim_product.drop("product_bk", axis=1, inplace=True)
+    print("DimProduct transformado.")
     return dim_product
 
 def transform_currency(df_currency: pd.DataFrame) -> pd.DataFrame:
     """Transforma los datos de moneda al formato DimCurrency."""
+    print("Transformando DimCurrency...")
     dim_currency = df_currency.rename(columns={
         "currency_bk": "currencyalternatekey",
         "currency_name": "currencyname"
     })
-    dim_currency["saved"] = date.today()
+    dim_currency.drop("modifieddate", axis=1, inplace=True)
+    print("DimCurrency transformado.")
     return dim_currency
 
 def transform_promotion(df_promo: pd.DataFrame) -> pd.DataFrame:
     """Transforma las promociones al formato DimPromotion."""
+    print("Transformando DimPromotion...")
     dim_promo = df_promo.rename(columns={
         "promotion_bk": "promotionalternatekey",
         "description": "englishpromotionname",
@@ -83,44 +104,61 @@ def transform_promotion(df_promo: pd.DataFrame) -> pd.DataFrame:
         "type": "englishpromotiontype",
         "category": "englishpromotioncategory",
     })
-    dim_promo["spanishpromotionname"] = dim_promo["englishpromotionname"]
-    dim_promo["frenchpromotionname"] = dim_promo["englishpromotionname"]
-    dim_promo["spanishpromotiontype"] = dim_promo["englishpromotiontype"]
-    dim_promo["frenchpromotiontype"] = dim_promo["englishpromotiontype"]
-    dim_promo["spanishpromotioncategory"] = dim_promo["englishpromotioncategory"]
-    dim_promo["frenchpromotioncategory"] = dim_promo["englishpromotioncategory"]
-    dim_promo["saved"] = date.today()
+
+    translator_es = GoogleTranslator(source='en', target='es')
+    translator_fr = GoogleTranslator(source='en', target='fr')
+
+    dim_promo["spanishpromotionname"] = dim_promo['englishpromotionname'].apply(lambda x: safe_translate(translator_es, x))
+    dim_promo["frenchpromotionname"] = dim_promo['englishpromotionname'].apply(lambda x: safe_translate(translator_fr, x))
+    dim_promo["spanishpromotiontype"] = dim_promo["englishpromotiontype"].apply(lambda x: safe_translate(translator_es, x))
+    dim_promo["frenchpromotiontype"] = dim_promo["englishpromotiontype"].apply(lambda x: safe_translate(translator_fr, x))
+    dim_promo["spanishpromotioncategory"] = dim_promo["englishpromotioncategory"].apply(lambda x: safe_translate(translator_es, x))
+    dim_promo["frenchpromotioncategory"] = dim_promo["englishpromotioncategory"].apply(lambda x: safe_translate(translator_fr, x))
+    dim_promo.drop("modifieddate", axis=1, inplace=True)
+
+    print("DimPromotion transformado.")
     return dim_promo
 
 def transform_sales_territory(df_territory: pd.DataFrame) -> pd.DataFrame:
     """Transforma territorios al formato DimSalesTerritory."""
+    print("Transformando DimSalesTerritory...")
     dim_territory = df_territory.rename(columns={
         "salesterritory_bk": "salesterritoryalternatekey",
         "salesterritory_name": "salesterritoryregion",
         "countryregioncode": "salesterritorycountry",
         "salesterritory_group": "salesterritorygroup"
     })
-    dim_territory["saved"] = date.today()
+    dim_territory.drop("modifieddate", axis=1, inplace=True)
+
+    print("DimSalesTerritory transformado.")
     return dim_territory
 
 def transform_geography(df_geo: pd.DataFrame) -> pd.DataFrame:
     """Transforma datos geográficos al formato DimGeography."""
+    print("Transformando DimGeography...")
     dim_geo = df_geo.rename(columns={
         "city": "city",
         "stateprovincecode": "stateprovincecode",
         "stateprovincename": "stateprovincename",
         "countryregioncode": "countryregioncode",
         "englishcountryregionname": "englishcountryregionname",
-        "spanishcountryregionname": "spanishcountryregionname",
-        "frenchcountryregionname": "frenchcountryregionname",
         "postalcode": "postalcode",
         "salesterritory_bk": "salesterritorykey",
         "ipaddresslocator": "ipaddresslocator"
     })
-    dim_geo["saved"] = date.today()
+    # Agregamos columnas para los nombres multilingües que DimGeography requiere
+    translator_es = GoogleTranslator(source='en', target='es')
+    translator_fr = GoogleTranslator(source='en', target='fr')
+    dim_geo["spanishcountryregionname"] = dim_geo["englishcountryregionname"].apply(lambda x: safe_translate(translator_es, x))
+    dim_geo["frenchcountryregionname"] = dim_geo["englishcountryregionname"].apply(lambda x: safe_translate(translator_fr, x))
+    dim_geo["ipaddresslocator"] = 'NA'  # Investigar su origen, por ahora lo dejamos vacío
+    dim_geo.drop("modifieddate", axis=1, inplace=True)
+    print("DimGeography transformado.")
     return dim_geo
 
 def transform_customer(df_customer: pd.DataFrame) -> pd.DataFrame:
+    """Transforma datos de clientes al formato DimCustomer."""
+    print("Transformando DimCustomer...")
     if df_customer.empty:
         return df_customer
 
@@ -129,9 +167,32 @@ def transform_customer(df_customer: pd.DataFrame) -> pd.DataFrame:
     demo_df = pd.DataFrame(list(demo_data))
     dim_customer = pd.concat([df_customer.reset_index(drop=True), demo_df], axis=1)
 
+    # Todos las filas que  tengan los campos de demographics nulos se eliminan
+    dim_customer.dropna(subset=["birthdate", "maritalstatus","yearlyincome","totalchildren","numberchildrenathome"], inplace=True)
+
+    # Para el yearlyincome viene un rango de valores en formato string, se toma el valor medio del rango [0-25000, 25001-50000, 50001-75000, 75001-100000, greater than 100000] para la última categoria se coloca 130000.
+    def parse_income(value):
+        if pd.isna(value):
+            return None
+        value = value.strip().lower()
+        if value.startswith("greater than"):
+            return 130000
+        elif "-" in value:
+            parts = value.replace("$", "").replace(",", "").split("-")
+            try:
+                low, high = int(parts[0]), int(parts[1])
+                return (low + high) / 2
+            except:
+                return None
+        else:
+            return None
+
+    dim_customer["yearlyincome"] = dim_customer["yearlyincome"].apply(parse_income)
+
+
     # Renombrar campos para alinearlos con DimCustomer
     dim_customer = dim_customer.rename(columns={
-        "customer_bk": "customeralternatekey",
+        "accountnumber": "customeralternatekey",
         "firstname": "firstname",
         "middlename": "middlename",
         "lastname": "lastname",
@@ -142,16 +203,21 @@ def transform_customer(df_customer: pd.DataFrame) -> pd.DataFrame:
         "addressline2": "addressline2",
         "territory_bk": "geographykey"
     })
-
+    
+    translator_es = GoogleTranslator(source='en', target='es')
+    translator_fr = GoogleTranslator(source='en', target='fr')
     # Campos multilingües y nulos faltantes
-    dim_customer["spanisheducation"] = dim_customer["englisheducation"]
-    dim_customer["frencheducation"] = dim_customer["englisheducation"]
-    dim_customer["spanishoccupation"] = dim_customer["englishoccupation"]
-    dim_customer["frenchoccupation"] = dim_customer["englishoccupation"]
-    dim_customer["saved"] = date.today()
+    dim_customer["spanisheducation"] = dim_customer["englisheducation"].apply(lambda x: safe_translate(translator_es, x))
+    dim_customer["frencheducation"] = dim_customer["englisheducation"].apply(lambda x: safe_translate(translator_fr, x))
+    dim_customer["spanishoccupation"] = dim_customer["englishoccupation"].apply(lambda x: safe_translate(translator_es, x))
+    dim_customer["frenchoccupation"] = dim_customer["englishoccupation"].apply(lambda x: safe_translate(translator_fr, x))
+    dim_customer.drop(["demographics", "englisheducation", "englishoccupation", "modifieddate"], axis=1, inplace=True)
+
+    dim_customer.drop(["accountNumber", "person_bk", "person_type", "email_promotion", "additionalcontactinfo","demographics", "emailpromotion", "modifieddate","city", "postalcode",""], axis=1, inplace=True)
 
     # Limpieza final
     dim_customer = dim_customer.replace({np.nan: None})
+    print("DimCustomer transformado.")
     return dim_customer
 
 def transform_fact_internet_sales(df_fact: pd.DataFrame) -> pd.DataFrame:

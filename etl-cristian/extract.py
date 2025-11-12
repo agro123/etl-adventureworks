@@ -18,14 +18,23 @@ def extract_product(source_engine: Engine, fecha: datetime | None = None) -> pd.
             p.color,
             p.size,
             p.weight,
-            p.modifieddate,
-            psc.productsubcategoryid AS productsubcategory_bk,
-            pc.productcategoryid AS productcategory_bk
+            p.weightunitmeasurecode,
+            p.sizeunitmeasurecode,
+            p.standardcost,
+            p.finishedgoodsflag,
+            p.safetystocklevel,
+            p.reorderpoint,
+            p.daystomanufacture,
+            p.productline,
+            p.class,
+            p.style,
+            p.sellstartdate,
+            p.sellenddate,
+            p.discontinueddate,
+            psc.productsubcategoryid AS productsubcategory_bk
         FROM production.product p
         LEFT JOIN production.productsubcategory psc 
             ON p.productsubcategoryid = psc.productsubcategoryid
-        LEFT JOIN production.productcategory pc 
-            ON psc.productcategoryid = pc.productcategoryid
     '''
     # Agregamos filtro si hay fecha
     if fecha:
@@ -114,6 +123,7 @@ def extract_customer(source_engine: Engine, fecha: datetime | None = None) -> pd
         LEFT JOIN person.person p ON c.personid = p.businessentityid
         LEFT JOIN person.emailaddress ea ON p.businessentityid = ea.businessentityid
         LEFT JOIN person.address a ON a.addressid = c.customerid  -- puede cambiar según el modelo lógico
+        WHERE p.demographics IS NOT NULL
     '''
     if fecha:
         q_base += " WHERE c.modifieddate >= :fecha;"
@@ -194,11 +204,6 @@ def extract_salesterritory(source_engine: Engine, fecha: datetime | None = None)
             st.name AS salesterritory_name,
             st.countryregioncode,
             st."group" AS salesterritory_group,
-            st.salesytd,
-            st.saleslastyear,
-            st.costytd,
-            st.costlastyear,
-            st.modifieddate
         FROM sales.salesterritory st
     '''
     if fecha:
@@ -244,10 +249,6 @@ def extract_geography(source_engine: Engine, fecha: datetime | None = None) -> p
     try:
         with source_engine.connect() as conn:
             df = pd.read_sql(text(q_base), conn, params={"fecha": fecha} if fecha else None)
-            # Agregamos columnas para los nombres multilingües que DimGeography requiere
-            df["spanishcountryregionname"] = df["englishcountryregionname"]
-            df["frenchcountryregionname"] = df["englishcountryregionname"]
-            df["ipaddresslocator"] = None  # Campo vacío por ahora
             return df
     except Exception as e:
         print(f"Error en extract_geography: {e}")
