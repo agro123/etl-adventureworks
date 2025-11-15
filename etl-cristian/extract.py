@@ -193,6 +193,36 @@ def extract_currency(source_engine: Engine, fecha: datetime | None = None) -> pd
         print(f"Error en extract_currency: {e}")
         return pd.DataFrame()
 
+def extract_salesreason(source_engine: Engine, fecha: datetime | None = None) -> pd.DataFrame:
+    """
+    Extrae las razones de venta desde sales.salesreason.
+    Si se pasa una fecha, filtra las filas modificadas desde esa fecha.
+    Retorna columnas con alias consistentes para el ETL:
+      - salesreason_bk
+      - salesreason_name
+      - salesreason_reasontype
+      - modifieddate
+    """
+    q_base = '''
+        SELECT
+            salesreasonid AS salesreason_bk,
+            name AS salesreason_name,
+            reasontype AS salesreason_reasontype,
+            modifieddate
+        FROM sales.salesreason
+    '''
+    if fecha:
+        q_base += " WHERE modifieddate >= :fecha;"
+    else:
+        q_base += ";"
+
+    try:
+        with source_engine.connect() as conn:
+            return pd.read_sql(text(q_base), conn, params={"fecha": fecha} if fecha else None)
+    except Exception as e:
+        print(f"Error en extract_salesreason: {e}")
+        return pd.DataFrame()
+
 def extract_salesterritory(source_engine: Engine, fecha: datetime | None = None) -> pd.DataFrame:
     """
     Extrae territorios de ventas desde sales.salesterritory.
@@ -313,12 +343,9 @@ def extract_fact_internet_sales_reason(source_engine: Engine, fecha: datetime | 
     q_base = '''
         SELECT 
             soh.salesordernumber,
-            sod.salesorderdetailid AS salesorderlinenumber,
             sor.salesreasonid AS salesreason_bk,
             soh.modifieddate
         FROM sales.salesorderheader soh
-        INNER JOIN sales.salesorderdetail sod 
-            ON soh.salesorderid = sod.salesorderid
         INNER JOIN sales.salesorderheadersalesreason sohsr 
             ON soh.salesorderid = sohsr.salesorderid
         INNER JOIN sales.salesreason sor 

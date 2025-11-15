@@ -16,6 +16,7 @@ from extract import (
     extract_salesterritory,
     extract_geography,
     extract_fact_internet_sales,
+    extract_salesreason,
     extract_fact_internet_sales_reason
 )
 from transform import (
@@ -28,6 +29,7 @@ from transform import (
     transform_geography,
     transform_customer,
     transform_fact_internet_sales,
+    transform_salesreason,
     transform_fact_internet_sales_reason,
     generate_dim_date
 )
@@ -62,12 +64,22 @@ if not check_db_connection(olap_conn, "OLAP") or not check_db_connection(oltp_co
 
 """ inspector = inspect(olap_conn)
 tnames = inspector.get_table_names() """
+#DATE DIMENSION START ==============================
+# Generar la dimensión de fecha
+dim_date = generate_dim_date()
+# Load dimDate
+load_table(
+    dim_date,
+    olap_conn,
+    "dimdate",
+    key_columns=["datekey"],
+)
+#DATE DIMENSION END ==============================
 
 
 # FACT INTERNET SALES ETL PROCESS ============================== START
 print('Iniciando proceso ETL para FactInternetSales...')
 # Verificar si hay nuevos datos y en ese caso iniciar la extracción
-#if new_data_internetsales(oltp_conn, olap_conn):
 if has_new_fact_data(conne=olap_conn, fact_table="factinternetsales"):
     print('Se detectaron datos nuevos en el origen. Iniciando extracción...')
 
@@ -107,8 +119,6 @@ if has_new_fact_data(conne=olap_conn, fact_table="factinternetsales"):
         dim_promotion = transform_promotion(dim_promotion)
         # Transform para dimCurrency
         dim_currency = transform_currency(dim_currency)
-        # Generar la dimensión de fecha
-        dim_date = generate_dim_date()
 
         print('Cargando dimensiones para FactInternetSales...')
         # Load dimProductCategory
@@ -167,13 +177,6 @@ if has_new_fact_data(conne=olap_conn, fact_table="factinternetsales"):
             "dimcurrency",
             key_columns=["currencyalternatekey"],
         )
-        # Load dimDate
-        load_table(
-            dim_date,
-            olap_conn,
-            "dimdate",
-            key_columns=["datekey"],
-        )
         print('Fin carga de dimensiones para FactInternetSales...')
 
     print('Extrayendo información para hecho FactInternetSales...')
@@ -181,15 +184,54 @@ if has_new_fact_data(conne=olap_conn, fact_table="factinternetsales"):
     print('Transformando información para hecho FactInternetSales...')
     fact_internet_sales = transform_fact_internet_sales(fact_internet_sales, olap_conn)
     print('Cargando hecho FactInternetSales...')
-    save_dataframe_to_csv(fact_internet_sales, 'fact_internet_sales.csv')
+    #save_dataframe_to_csv(fact_internet_sales, 'fact_internet_sales.csv')
     load_table(
         fact_internet_sales,
         olap_conn,
         "factinternetsales",
         key_columns=["salesordernumber", "salesorderlinenumber"],
     )
-
 else:
     print('No hay datos nuevos. Proceso finalizado.')
 print('Finalizando proceso ETL para FactInternetSales...')
 # FACT INTERNET SALES ETL PROCESS ============================== END 
+
+# FACT INTERNET SALES REASONS ETL PROCESS ============================== START
+print('Iniciando proceso ETL para FactInternetSalesReason...')
+if True:
+    print('Se detectaron datos nuevos en el origen. Iniciando extracción...')
+
+    if config['LOAD_DIMENSIONS']:
+        print('Extrayendo dimensiones para FactInternetSalesReason...')
+        # Extract para DimSalesReason
+        dim_sales_reason = extract_salesreason(oltp_conn)
+
+        print('Transformando dimensiones para FactInternetSalesReason...')
+        # Transform para dimSalesReason
+        dim_sales_reason = transform_salesreason(dim_sales_reason)
+
+        print('Cargando dimensiones para FactInternetSalesReason...')
+        # Load dimSalesReason
+        load_table(
+            dim_sales_reason,
+            olap_conn,
+            "dimsalesreason",
+            key_columns=["salesreasonalternatekey"],
+        )
+        print('Fin carga de dimensiones para FactInternetSalesReason...')
+
+    print('Extrayendo información para hecho FactInternetSalesReason...')
+    fact_internet_sales_reason = extract_fact_internet_sales_reason(oltp_conn)
+    print('Transformando información para hecho FactInternetSalesReason...')
+    fact_internet_sales_reason = transform_fact_internet_sales_reason(fact_internet_sales_reason, olap_conn)
+    print('Cargando hecho FactInternetSalesReason...')
+    load_table(
+        fact_internet_sales_reason,
+        olap_conn,
+        "factinternetsalesreason",
+        key_columns=["salesordernumber", "salesorderlinenumber", "salesreasonkey"],
+    )
+else:
+    print('No hay datos nuevos. Proceso finalizado.')
+print('Finalizando proceso ETL para FactInternetSalesReason...')
+# FACT INTERNET SALES REASONS ETL PROCESS ============================== END 

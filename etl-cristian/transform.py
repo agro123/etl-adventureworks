@@ -123,6 +123,42 @@ def transform_promotion(df_promo: pd.DataFrame) -> pd.DataFrame:
     print("DimPromotion transformado.")
     return dim_promo
 
+def transform_salesreason(df_salesreason: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transforma las razones de venta al formato de `public.dimsalesreason`.
+        Espera las columnas (como devuelve `extract_salesreason`):
+            - salesreason_bk
+            - salesreason_name
+            - salesreason_reasontype
+            - modifieddate
+
+        Devuelve un DataFrame con columnas:
+            - salesreasonalternatekey
+            - salesreasonname
+            - salesreasonreasontype
+        """
+        print("Transformando DimSalesReason...")
+        if df_salesreason is None or df_salesreason.empty:
+                print("No hay datos en df_salesreason")
+                return pd.DataFrame(columns=["salesreasonalternatekey", "salesreasonname", "salesreasonreasontype"])
+
+        dim_salesreason = df_salesreason.rename(columns={
+                "salesreason_bk": "salesreasonalternatekey",
+                "salesreason_name": "salesreasonname",
+                "salesreason_reasontype": "salesreasonreasontype"
+        })
+
+        dim_salesreason["salesreasonname"] = dim_salesreason["salesreasonname"].fillna("NA")
+        dim_salesreason["salesreasonreasontype"] = dim_salesreason["salesreasonreasontype"].fillna("NA")
+
+        if "modifieddate" in dim_salesreason.columns:
+                dim_salesreason.drop(columns=["modifieddate"], inplace=True)
+
+        dim_salesreason = dim_salesreason[["salesreasonalternatekey", "salesreasonname", "salesreasonreasontype"]]
+
+        print("DimSalesReason transformado.")
+        return dim_salesreason
+
 def transform_sales_territory(df_territory: pd.DataFrame) -> pd.DataFrame:
     """Transforma territorios al formato DimSalesTerritory."""
     print("Transformando DimSalesTerritory...")
@@ -224,8 +260,6 @@ def transform_customer(df_customer: pd.DataFrame) -> pd.DataFrame:
     return dim_customer
 
 def transform_fact_internet_sales(df_fact: pd.DataFrame, target_engine: Engine) -> pd.DataFrame:
-    import pandas as pd
-
     if df_fact.empty:
         print("DF de ventas vacío.")
         return df_fact
@@ -350,14 +384,44 @@ def transform_fact_internet_sales(df_fact: pd.DataFrame, target_engine: Engine) 
     return df_fact
 
 
-def transform_fact_internet_sales_reason(df_fact_reason: pd.DataFrame) -> pd.DataFrame:
-    fact_reason = df_fact_reason.rename(columns={
-        "salesordernumber": "salesordernumber",
-        "salesorderlinenumber": "salesorderlinenumber",
-        "salesreason_bk": "salesreasonkey"
-    })
-    fact_reason["saved"] = date.today()
-    return fact_reason
+def transform_fact_internet_sales_reason(df_fact_reason: pd.DataFrame, target_engine: Engine) -> pd.DataFrame:
+    if df_fact_reason.empty:
+        print("DF de ventas vacío.")
+        return df_fact_reason
+    print("Transformando FactInternetSalesReason...")
+
+    # ============================
+    # 1. Cargar DIM para lookups
+    # ============================
+    dim_salesreason = pd.read_sql("SELECT salesreasonkey, salesreasonalternatekey FROM public.dimsalesreason", target_engine)
+
+    # ============================
+    # 2. LOOKUP de surrogate keys
+    # ============================
+    df_fact_reason = df_fact_reason.merge(dim_salesreason,
+                            how="left",
+                            left_on="salesreason_bk",
+                            right_on="salesreasonalternatekey")
+    df_fact_reason.rename(columns={"salesreasonkey_x": "salesreasonalternatekey",
+                            "salesreasonkey_y": "salesreasonkey"}, inplace=True)
+
+    df_fact_reason["salesorderlinenumber"] = df_fact_reason.sort_values(["salesordernumber"]).groupby("salesordernumber").cumcount() + 1
+
+    # ======================
+    # 3. Limpiar columnas
+    # ======================
+    cols_to_keep = [
+        "salesordernumber",
+        "salesorderlinenumber",
+        "salesreasonkey"
+    ]
+
+    df_fact_reason = df_fact_reason[cols_to_keep]
+    df_fact_reason["saved"] = date.today()
+
+    print("FactInternetSalesReason transformado con surrogate keys.")
+
+    return df_fact_reason
 
 def generate_dim_date(start_date='2005-01-01', end_date='2025-12-31') -> pd.DataFrame:
     """
