@@ -1,3 +1,4 @@
+import traceback
 import pandas as pd
 from sqlalchemy import text, Engine
 
@@ -57,4 +58,6 @@ def load_table(
         print("Carga completada.")
     
     except Exception as e:
+        with open("errores.txt", "a") as f:
+            f.write(traceback.format_exc() + "\n")
         print(f"Error al cargar {schema}.{table_name}: {e}")

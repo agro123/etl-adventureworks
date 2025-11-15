@@ -133,7 +133,7 @@ if has_new_fact_data(conne=olap_conn, fact_table="factinternetsales"):
             key_columns=["productalternatekey"],
         )
         # Load dimSalesTerritory
-        ''' load_table(
+        load_table(
             dim_sales_territory,
             olap_conn,
             "dimsalesterritory",
@@ -173,21 +173,21 @@ if has_new_fact_data(conne=olap_conn, fact_table="factinternetsales"):
             olap_conn,
             "dimdate",
             key_columns=["datekey"],
-        ) '''
+        )
         print('Fin carga de dimensiones para FactInternetSales...')
 
     print('Extrayendo información para hecho FactInternetSales...')
     fact_internet_sales = extract_fact_internet_sales(oltp_conn)
     print('Transformando información para hecho FactInternetSales...')
-    fact_internet_sales = transform_fact_internet_sales(fact_internet_sales)
+    fact_internet_sales = transform_fact_internet_sales(fact_internet_sales, olap_conn)
     print('Cargando hecho FactInternetSales...')
     save_dataframe_to_csv(fact_internet_sales, 'fact_internet_sales.csv')
-    """ load_table(
+    load_table(
         fact_internet_sales,
         olap_conn,
         "factinternetsales",
-        key_columns=["salesordernumber", "salesorderlineitemnumber"],
-    ) """
+        key_columns=["salesordernumber", "salesorderlinenumber"],
+    )
 
 else:
     print('No hay datos nuevos. Proceso finalizado.')

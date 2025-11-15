@@ -99,7 +99,7 @@ def extract_product_category(source_engine: Engine, fecha: datetime | None = Non
 def extract_customer(source_engine: Engine, fecha: datetime | None = None) -> pd.DataFrame:
     q_base = '''
         SELECT 
-            c.customerid AS customer_bk,
+            c.accountnumber AS customer_bk,
             c.accountnumber,
             c.territoryid AS territory_bk,
             p.businessentityid AS person_bk,
@@ -203,7 +203,7 @@ def extract_salesterritory(source_engine: Engine, fecha: datetime | None = None)
             st.territoryid AS salesterritory_bk,
             st.name AS salesterritory_name,
             st.countryregioncode,
-            st."group" AS salesterritory_group,
+            st."group" AS salesterritory_group
         FROM sales.salesterritory st
     '''
     if fecha:
@@ -259,8 +259,8 @@ def extract_fact_internet_sales(source_engine: Engine, fecha: datetime | None = 
         SELECT 
             soh.salesorderid,
             soh.salesordernumber,
-            sod.salesorderdetailid AS salesorderlinenumber,
-            soh.revisionnumber,
+            -- sod.salesorderdetailid AS salesorderlinenumber,
+            (1) AS revisionnumber,
             sod.orderqty AS orderquantity,
             sod.unitprice,
             sod.linetotal AS extendedamount,
@@ -273,11 +273,14 @@ def extract_fact_internet_sales(source_engine: Engine, fecha: datetime | None = 
             soh.freight,
             sod.carriertrackingnumber,
             soh.purchaseordernumber AS customerponumber,
+            TO_CHAR(soh.orderdate::date, 'YYYYMMDD')::integer AS orderdatekey,
+            TO_CHAR(soh.duedate::date, 'YYYYMMDD')::integer AS duedatekey,
+            TO_CHAR(soh.shipdate::date, 'YYYYMMDD')::integer AS shipdatekey,
             soh.orderdate,
             soh.duedate,
             soh.shipdate,
-            soh.customerid AS customer_bk,
-            sod.productid AS product_bk,
+            c.accountnumber AS customer_bk,
+            p.productnumber AS product_bk,
             sod.specialofferid AS promotion_bk,
             cr.tocurrencycode AS currency_bk,
             soh.territoryid AS salesterritory_bk,
