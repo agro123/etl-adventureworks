@@ -470,3 +470,35 @@ def extract_factsurveyresponse(source_engine: Engine, fecha: datetime | None = N
     except Exception as e:
         print(f"Error en extract_factsurveyresponse: {e}")
         return pd.DataFrame()
+
+def extract_salesquota(source_engine: Engine, fecha: datetime | None = None) -> pd.DataFrame:
+        """
+        Extrae el histórico de cuotas de ventas desde sales.salespersonquotahistory.
+        Devuelve columnas mínimas necesarias para transformar a public.factsalesquota:
+          - employee_bk (businessentityid)
+          - employeenationalidalternatekey (joined from humanresources.employee)
+          - date (quotadate)
+          - salesquota
+          - modifieddate
+        """
+        q_base = '''
+            SELECT
+                sq.businessentityid AS employee_bk,
+                e.nationalidnumber AS employeenationalidalternatekey,
+                sq.quotadate AS date,
+                sq.salesquota::numeric AS salesquota,
+                sq.modifieddate
+            FROM sales.salespersonquotahistory sq
+            LEFT JOIN humanresources.employee e ON sq.businessentityid = e.businessentityid
+        '''
+        if fecha:
+            q_base += " WHERE sq.modifieddate >= :fecha;"
+        else:
+            q_base += ";"
+
+        try:
+            with source_engine.connect() as conn:
+                return pd.read_sql(text(q_base), conn, params={"fecha": fecha} if fecha else None)
+        except Exception as e:
+            print(f"Error en extract_salesquota: {e}")
+            return pd.DataFrame()

@@ -16,6 +16,7 @@ from extract import (
     extract_salesterritory,
     extract_geography,
     extract_employee,
+    extract_salesquota,
     extract_fact_internet_sales,
     extract_salesreason,
     extract_fact_internet_sales_reason,
@@ -31,6 +32,7 @@ from transform import (
     transform_geography,
     transform_customer,
     transform_employee,
+    transform_factsalesquota,
     transform_fact_internet_sales,
     transform_salesreason,
     transform_fact_internet_sales_reason,
@@ -271,3 +273,24 @@ else:
     print('No hay datos nuevos. Proceso finalizado.')
 print('Finalizando proceso ETL para FactSurveyResponse...')
 # FACT SURVEY RESPONSE ETL PROCESS ============================== END 
+
+# FACT SALES QUOTA ETL PROCESS ============================== START
+print('Iniciando proceso ETL para FactSalesQuota...')
+if has_new_fact_data(conne=olap_conn, fact_table="factsalesquota", date_col="date"):
+    print('Se detectaron datos nuevos en el origen. Iniciando extracción...')
+
+    print('Extrayendo información para hecho FactSalesQuota...')
+    fact_sales_quota = extract_salesquota(oltp_conn)
+    print('Transformando información para hecho FactSalesQuota...')
+    fact_sales_quota = transform_factsalesquota(fact_sales_quota, olap_conn)
+    print('Cargando hecho FactSalesQuota...')
+    load_table(
+        fact_sales_quota,
+        olap_conn,
+        "factsalesquota",
+        key_columns=["employeekey", "datekey"],
+    )
+else:
+    print('No hay datos nuevos. Proceso finalizado.')
+print('Finalizando proceso ETL para FactSalesQuota...')
+# FACT SALES QUOTA ETL PROCESS ============================== END

@@ -292,6 +292,55 @@ def transform_employee(df_employee: pd.DataFrame, target_engine: Engine) -> pd.D
     print("DimEmployee transformado.")
     return df_out
 
+
+def transform_factsalesquota(df_quota: pd.DataFrame, target_engine: Engine) -> pd.DataFrame:
+    """
+    Transforma el extract de cuotas (salespersonquotahistory) al layout de public.factsalesquota.
+    Resuelve surrogate key de empleado (employeekey) a partir de public.dimemployee (employeenationalidalternatekey).
+    Genera datekey (YYYYMMDD), calendaryear y calendarquarter.
+    """
+    if df_quota is None or df_quota.empty:
+        print("No hay datos en df_quota")
+        return pd.DataFrame(columns=["employeekey", "datekey", "calendaryear", "calendarquarter", "salesamountquota", "date"])
+
+    print("Transformando FactSalesQuota...")
+    df = df_quota.copy()
+
+    # Normalizar fecha
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df["datekey"] = df["date"].dt.strftime("%Y%m%d").astype('Int64')
+    df["calendaryear"] = df["date"].dt.year.astype('Int64')
+    df["calendarquarter"] = df["date"].dt.quarter.astype('Int64')
+
+    # lookup employeekey desde dimemployee
+    try:
+        dim_emp = pd.read_sql("SELECT employeekey, employeenationalidalternatekey FROM public.dimemployee", target_engine)
+    except Exception:
+        dim_emp = pd.DataFrame(columns=["employeekey", "employeenationalidalternatekey"])
+
+    if not dim_emp.empty and "employeenationalidalternatekey" in df.columns:
+        df = df.merge(dim_emp, how="left", left_on="employeenationalidalternatekey", right_on="employeenationalidalternatekey")
+        # employeekey column from dim_emp
+        df["employeekey"] = df["employeekey"]
+    else:
+        df["employeekey"] = None
+
+    # Seleccionar y renombrar columnas al layout de factsalesquota
+    df_out = df[["employeekey", "datekey", "calendaryear", "calendarquarter", "salesquota", "date"]].copy()
+    df_out = df_out.rename(columns={"salesquota": "salesamountquota"})
+
+    # Quitar filas sin employeekey o datekey
+    df_out = df_out.dropna(subset=["employeekey", "datekey"]).reset_index(drop=True)
+
+    # Convertir tipos
+    df_out["employeekey"] = df_out["employeekey"].astype(int)
+    df_out["datekey"] = df_out["datekey"].astype(int)
+    df_out["calendaryear"] = df_out["calendaryear"].astype(int)
+    df_out["calendarquarter"] = df_out["calendarquarter"].astype(int)
+
+    print("FactSalesQuota transformado con surrogate keys.")
+    return df_out
+
 def transform_customer(df_customer: pd.DataFrame) -> pd.DataFrame:
     """Transforma datos de clientes al formato DimCustomer."""
     print("Transformando DimCustomer...")
