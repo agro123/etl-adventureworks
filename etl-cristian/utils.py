@@ -86,4 +86,4 @@ def has_new_fact_data(conne: Engine, fact_table: str, saved_col: str = "saved", 
             return False
 
 
-""" Se altero la tabla factinternetsales y factinternetsalesreason en la base de datos OLAP para incluir las columnas 'saved' y 'orderdate'"""
+""" Se altero la tabla factinternetsales y factinternetsalesreason en la base de datos OLAP para incluir las columnas 'saved' """

@@ -198,7 +198,7 @@ print('Finalizando proceso ETL para FactInternetSales...')
 
 # FACT INTERNET SALES REASONS ETL PROCESS ============================== START
 print('Iniciando proceso ETL para FactInternetSalesReason...')
-if True:
+if has_new_fact_data(conne=olap_conn, fact_table="factinternetsales"):
     print('Se detectaron datos nuevos en el origen. Iniciando extracción...')
 
     if config['LOAD_DIMENSIONS']:

@@ -405,7 +405,7 @@ def transform_fact_internet_sales_reason(df_fact_reason: pd.DataFrame, target_en
     df_fact_reason.rename(columns={"salesreasonkey_x": "salesreasonalternatekey",
                             "salesreasonkey_y": "salesreasonkey"}, inplace=True)
 
-    df_fact_reason["salesorderlinenumber"] = df_fact_reason.sort_values(["salesordernumber"]).groupby("salesordernumber").cumcount() + 1
+    df_fact_reason["salesorderlinenumber"] = df_fact_reason.sort_values(["salesordernumber", "salesreasonkey"]).groupby(["salesordernumber", "salesreasonkey"]).cumcount() + 1
 
     # ======================
     # 3. Limpiar columnas

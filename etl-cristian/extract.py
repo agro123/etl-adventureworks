@@ -346,6 +346,8 @@ def extract_fact_internet_sales_reason(source_engine: Engine, fecha: datetime | 
             sor.salesreasonid AS salesreason_bk,
             soh.modifieddate
         FROM sales.salesorderheader soh
+        INNER JOIN sales.salesorderdetail sod 
+            ON soh.salesorderid = sod.salesorderid
         INNER JOIN sales.salesorderheadersalesreason sohsr 
             ON soh.salesorderid = sohsr.salesorderid
         INNER JOIN sales.salesreason sor 
