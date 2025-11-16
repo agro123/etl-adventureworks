@@ -248,7 +248,6 @@ def extract_salesterritory(source_engine: Engine, fecha: datetime | None = None)
         print(f"Error en extract_salesterritory: {e}")
         return pd.DataFrame()
 
-
 def extract_geography(source_engine: Engine, fecha: datetime | None = None) -> pd.DataFrame:
     """
     Extrae información geográfica desde person.address, person.stateprovince,
@@ -363,4 +362,61 @@ def extract_fact_internet_sales_reason(source_engine: Engine, fecha: datetime | 
             return pd.read_sql(text(q_base), conn, params={"fecha": fecha} if fecha else None)
     except Exception as e:
         print(f"Error en extract_fact_internet_sales_reason: {e}")
+        return pd.DataFrame()
+
+
+def extract_factsurveyresponse(source_engine: Engine, fecha: datetime | None = None) -> pd.DataFrame:
+    """
+    Extrae una fila por cliente con la información de su última compra (categoria/subcategoria)
+    y la fecha de la orden. Esta vista se usa como proxy del 'survey response' en AW.
+    Si se pasa una fecha, filtra las órdenes modificadas desde esa fecha.
+
+    Retorna columnas:
+      - customer_bk
+      - productcategory_bk
+      - englishproductcategoryname
+      - productsubcategory_bk
+      - englishproductsubcategoryname
+      - orderdate
+    """
+    q_base = '''
+        SELECT
+                c.accountnumber AS customer_bk,
+                pc.productcategoryid AS productcategory_bk,
+                pc.name AS englishproductcategoryname,
+                psc.productsubcategoryid AS productsubcategory_bk,
+                psc.name AS englishproductsubcategoryname,
+                soh.orderdate
+            FROM sales.customer c
+            JOIN sales.salesorderheader soh ON soh.customerid = c.customerid
+            JOIN sales.salesorderdetail sod ON sod.salesorderid = soh.salesorderid
+            JOIN production.product p ON p.productid = sod.productid
+            LEFT JOIN production.productsubcategory psc ON p.productsubcategoryid = psc.productsubcategoryid
+            LEFT JOIN production.productcategory pc ON psc.productcategoryid = pc.productcategoryid
+    '''
+
+    # Aplicar filtro por fecha sobre orderdate si se indica
+    if fecha:
+        q_base = """
+        SELECT
+            c.accountnumber AS customer_bk,
+            pc.productcategoryid AS productcategory_bk,
+            pc.name AS englishproductcategoryname,
+            psc.productsubcategoryid AS productsubcategory_bk,
+            psc.name AS englishproductsubcategoryname,
+            soh.orderdate
+        FROM sales.customer c
+        JOIN sales.salesorderheader soh ON soh.customerid = c.customerid
+        JOIN sales.salesorderdetail sod ON sod.salesorderid = soh.salesorderid
+        JOIN production.product p ON p.productid = sod.productid
+        LEFT JOIN production.productsubcategory psc ON p.productsubcategoryid = psc.productsubcategoryid
+        LEFT JOIN production.productcategory pc ON psc.productcategoryid = pc.productcategoryid
+        WHERE soh.orderdate >= :fecha
+        """
+
+    try:
+        with source_engine.connect() as conn:
+            return pd.read_sql(text(q_base), conn, params={"fecha": fecha} if fecha else None)
+    except Exception as e:
+        print(f"Error en extract_factsurveyresponse: {e}")
         return pd.DataFrame()

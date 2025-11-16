@@ -319,7 +319,7 @@ def transform_fact_internet_sales(df_fact: pd.DataFrame, target_engine: Engine) 
     df_fact.sort_values(["salesordernumber"])       # ordena por orden de venta
       .groupby("salesordernumber")
       .cumcount() + 1
-)
+    )
 
     # ======================
     # 3. Limpiar columnas
@@ -390,14 +390,10 @@ def transform_fact_internet_sales_reason(df_fact_reason: pd.DataFrame, target_en
         return df_fact_reason
     print("Transformando FactInternetSalesReason...")
 
-    # ============================
-    # 1. Cargar DIM para lookups
-    # ============================
+    # Cargar dimensiones necesarias para lookups
     dim_salesreason = pd.read_sql("SELECT salesreasonkey, salesreasonalternatekey FROM public.dimsalesreason", target_engine)
 
-    # ============================
-    # 2. LOOKUP de surrogate keys
-    # ============================
+    # LOOKUP SALESREASON
     df_fact_reason = df_fact_reason.merge(dim_salesreason,
                             how="left",
                             left_on="salesreason_bk",
@@ -407,9 +403,7 @@ def transform_fact_internet_sales_reason(df_fact_reason: pd.DataFrame, target_en
 
     df_fact_reason["salesorderlinenumber"] = df_fact_reason.sort_values(["salesordernumber", "salesreasonkey"]).groupby(["salesordernumber", "salesreasonkey"]).cumcount() + 1
 
-    # ======================
-    # 3. Limpiar columnas
-    # ======================
+    # Seleccionar columnas finales
     cols_to_keep = [
         "salesordernumber",
         "salesorderlinenumber",
@@ -422,6 +416,73 @@ def transform_fact_internet_sales_reason(df_fact_reason: pd.DataFrame, target_en
     print("FactInternetSalesReason transformado con surrogate keys.")
 
     return df_fact_reason
+
+def transform_factsurveyresponse(df_survey: pd.DataFrame, target_engine: Engine) -> pd.DataFrame:
+    """
+    Transforma el extract de survey response al layout de public.factsurveyresponse
+    - Resuelve surrogate keys para customer, productcategory y productsubcategory
+    - Genera datekey a partir de la fecha de orden (orderdate)
+    """
+    if df_survey is None or df_survey.empty:
+        print("No hay datos en df_survey")
+        return pd.DataFrame(columns=[
+            "datekey",
+            "customerkey",
+            "productcategorykey",
+            "englishproductcategoryname",
+            "productsubcategorykey",
+            "englishproductsubcategoryname",
+            "date"
+        ])
+
+    print("Transformando FactSurveyResponse...")
+
+    # Cargar dimensiones necesarias para lookups
+    dim_customer = pd.read_sql("SELECT customerkey, customeralternatekey FROM public.dimcustomer", target_engine)
+    dim_cat = pd.read_sql("SELECT productcategorykey, productcategoryalternatekey, englishproductcategoryname FROM public.dimproductcategory", target_engine)
+    dim_sub = pd.read_sql("SELECT productsubcategorykey, productsubcategoryalternatekey, englishproductsubcategoryname FROM public.dimproductsubcategory", target_engine)
+
+    df = df_survey.copy()
+
+    # LOOKUP CUSTOMER
+    df = df.merge(dim_customer, how="left", left_on="customer_bk", right_on="customeralternatekey")
+    # LOOKUP PRODUCT CATEGORY
+    df = df.merge(dim_cat, how="left", left_on="productcategory_bk", right_on="productcategoryalternatekey")
+    # LOOKUP PRODUCT SUBCATEGORY
+    df = df.merge(dim_sub, how="left", left_on="productsubcategory_bk", right_on="productsubcategoryalternatekey")
+
+    # Normalizar fecha y generar datekey
+    df["date"] = pd.to_datetime(df["orderdate"]) if "orderdate" in df.columns else pd.to_datetime(df.get("date", None))
+    df["datekey"] = df["date"].dt.strftime("%Y%m%d").astype(float).astype('Int64')
+
+    df = df.rename(columns={
+        "englishproductcategoryname_y": "englishproductcategoryname",
+        "englishproductsubcategoryname_y": "englishproductsubcategoryname"
+    })
+
+    # Seleccionar columnas finales en el orden esperado
+    cols_to_keep = [
+        "datekey",
+        "customerkey",
+        "productcategorykey",
+        "englishproductcategoryname",
+        "productsubcategorykey",
+        "englishproductsubcategoryname",
+        "date"
+    ]
+
+    df = df[cols_to_keep]
+    # Eliminar filas con claves faltantes (no tienen surrogate keys)
+    df = df.dropna(subset=["datekey", "customerkey", "productcategorykey", "productsubcategorykey"]).reset_index(drop=True)
+
+    # Convertir tipos a enteros cuando aplique
+    """ df["datekey"] = df["datekey"].astype(int)
+    df["customerkey"] = df["customerkey"].astype(int)
+    df["productcategorykey"] = df["productcategorykey"].astype(int)
+    df["productsubcategorykey"] = df["productsubcategorykey"].astype(int)  """
+
+    print("FactSurveyResponse transformado con surrogate keys.")
+    return df
 
 def generate_dim_date(start_date='2005-01-01', end_date='2025-12-31') -> pd.DataFrame:
     """
