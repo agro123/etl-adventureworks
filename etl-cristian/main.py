@@ -15,10 +15,11 @@ from extract import (
     extract_currency,
     extract_salesterritory,
     extract_geography,
+    extract_employee,
     extract_fact_internet_sales,
     extract_salesreason,
-    extract_fact_internet_sales_reason
-    ,extract_factsurveyresponse
+    extract_fact_internet_sales_reason,
+    extract_factsurveyresponse
 )
 from transform import (
     transform_product_category,
@@ -29,11 +30,12 @@ from transform import (
     transform_sales_territory,
     transform_geography,
     transform_customer,
+    transform_employee,
     transform_fact_internet_sales,
     transform_salesreason,
     transform_fact_internet_sales_reason,
     transform_factsurveyresponse,
-    generate_dim_date
+    generate_dim_date,
 )
 from load import load_table
 import psycopg2
@@ -85,6 +87,8 @@ if config['LOAD_DIMENSIONS']:
     dim_promotion = extract_promotion(oltp_conn)
     # Extract para DimCurrency
     dim_currency = extract_currency(oltp_conn)
+    # Extract para DimEmployee
+    dim_employee = extract_employee(oltp_conn)
 
     print('Transformando dimensiones...')
     # Transform para dimProductCategory
@@ -103,6 +107,8 @@ if config['LOAD_DIMENSIONS']:
     dim_promotion = transform_promotion(dim_promotion)
     # Transform para dimCurrency
     dim_currency = transform_currency(dim_currency)
+    # Transform para dimEmployee
+    dim_employee = transform_employee(dim_employee, olap_conn)
 
     # Generar la dimensión de fecha
     dim_date = generate_dim_date()
@@ -170,6 +176,13 @@ if config['LOAD_DIMENSIONS']:
         olap_conn,
         "dimcurrency",
         key_columns=["currencyalternatekey"],
+    )
+    # Load dimEmployee
+    load_table(
+        dim_employee,
+        olap_conn,
+        "dimemployee",
+        key_columns=["employeenationalidalternatekey"],
     )
     print('Fin carga de dimensiones...')
 #DIMENSIONES END ==============================

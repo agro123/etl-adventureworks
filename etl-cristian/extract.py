@@ -283,6 +283,63 @@ def extract_geography(source_engine: Engine, fecha: datetime | None = None) -> p
         print(f"Error en extract_geography: {e}")
         return pd.DataFrame()
     
+def extract_employee(source_engine: Engine, fecha: datetime | None = None) -> pd.DataFrame:
+    """
+    Extrae información de empleados desde humanresources.employee
+    y tablas relacionadas (person.person, person.emailaddress, person.personphone, sales.salesperson).
+    Retorna un DataFrame con columnas alineadas para la transformación de dimEmployee.
+    """
+    q_base = '''
+        SELECT
+            e.businessentityid AS employee_bk,
+            e.nationalidnumber AS employeenationalidalternatekey,
+            concat(firstname, ' ', lastname) AS emergencycontactname,
+            pp.phonenumber AS emergencycontactphone,
+            p.firstname,
+            p.middlename,
+            p.lastname,
+            p.namestyle,
+            e.jobtitle as title,
+            e.hiredate,
+            e.birthdate,
+            e.loginid,
+            ea.emailaddress,
+            pp.phonenumber AS phone,
+            e.maritalstatus,
+            e.salariedflag,
+            e.gender,
+            sp.territoryid AS salesterritory_bk,
+            edh.rate AS baserate,
+            edh.payfrequency,
+            e.vacationhours,
+            e.sickleavehours,
+            d.name AS departmentname,
+            edh2.startdate,
+            edh2.enddate,
+            (CASE WHEN edh2.enddate IS NOT NULL THEN 'Current' ELSE Null END) AS status,
+            (sp.businessentityid IS NOT NULL) AS salespersonflag,
+            e.modifieddate
+        FROM humanresources.employee e
+        LEFT JOIN person.person p ON e.businessentityid = p.businessentityid
+        LEFT JOIN person.emailaddress ea ON p.businessentityid = ea.businessentityid
+        LEFT JOIN person.personphone pp ON p.businessentityid = pp.businessentityid
+        LEFT JOIN sales.salesperson sp ON e.businessentityid = sp.businessentityid
+        LEFT JOIN humanresources.employeepayhistory edh ON e.businessentityid = edh.businessentityid
+        LEFT JOIN humanresources.employeedepartmenthistory edh2 ON e.businessentityid = edh2.businessentityid
+        LEFT JOIN humanresources.department d ON edh2.departmentid = d.departmentid
+    '''
+    if fecha:
+        q_base += " WHERE e.modifieddate >= :fecha;"
+    else:
+        q_base += ";"
+
+    try:
+        with source_engine.connect() as conn:
+            return pd.read_sql(text(q_base), conn, params={"fecha": fecha} if fecha else None)
+    except Exception as e:
+        print(f"Error en extract_employee: {e}")
+        return pd.DataFrame()
+
 def extract_fact_internet_sales(source_engine: Engine, fecha: datetime | None = None) -> pd.DataFrame:
     q_base = '''
         SELECT 
@@ -406,32 +463,7 @@ def extract_factsurveyresponse(source_engine: Engine, fecha: datetime | None = N
 
     # Aplicar filtro por fecha sobre orderdate si se indica
     if fecha:
-        q_base = """
-            SELECT 
-                TO_CHAR(soh.orderdate::date, 'YYYYMMDD')::integer AS datekey,
-                c.accountnumber AS customer_bk,
-                p3.productcategoryid as productcategory_bk,
-                p3."name" as englishproductcategoryname,
-                p2.productsubcategoryid as productsubcategory_bk,
-                p2."name" as englishproductsubcategoryname,
-                soh.orderdate::date as orderdate
-            FROM sales.salesorderheader soh
-            LEFT JOIN sales.salesorderdetail sod 
-                ON soh.salesorderid = sod.salesorderid
-            INNER JOIN production.product p 
-                ON sod.productid = p.productid
-            INNER JOIN sales.customer c 
-                ON soh.customerid = c.customerid
-            INNER JOIN person.person pn
-                ON c.personid = pn.businessentityid AND pn.demographics IS NOT NULL
-            INNER JOIN production.productsubcategory p2
-                    ON p.productsubcategoryid  = p2.productsubcategoryid
-            INNER JOIN production.productcategory p3
-                    ON p2.productcategoryid  = p3.productcategoryid 
-            WHERE soh.orderdate >= :fecha
-            GROUP BY soh.orderdate, c.accountnumber, p3.productcategoryid, p2.productsubcategoryid
-        """
-
+        q_base += " WHERE e.modifieddate >= :fecha;"
     try:
         with source_engine.connect() as conn:
             return pd.read_sql(text(q_base), conn, params={"fecha": fecha} if fecha else None)

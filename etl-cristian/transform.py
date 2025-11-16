@@ -196,6 +196,102 @@ def transform_geography(df_geo: pd.DataFrame) -> pd.DataFrame:
     print("DimGeography transformado.")
     return dim_geo
 
+def transform_employee(df_employee: pd.DataFrame, target_engine: Engine) -> pd.DataFrame:
+    """
+    Transforma el extract de empleados al layout esperado por public.dimemployee.
+    Realiza lookups para obtener surrogate keys (salesterritory).
+    """
+    print("Transformando DimEmployee...")
+    if df_employee is None or df_employee.empty:
+        print("No hay datos en df_employee")
+        # Devolver columnas esperadas vacías
+        cols = [
+            "parentemployeekey",
+            "parentemployeenationalidalternatekey",
+            "salesterritorykey",
+            "firstname",
+            "lastname",
+            "middlename",
+            "namestyle",
+            "title",
+            "hiredate",
+            "birthdate",
+            "loginid",
+            "emailaddress",
+            "phone",
+            "maritalstatus",
+            "emergencycontactname",
+            "emergencycontactphone",
+            "salariedflag",
+            "gender",
+            "payfrequency",
+            "baserate",
+            "vacationhours",
+            "sickleavehours",
+            "currentflag",
+            "salespersonflag",
+            "departmentname",
+            "startdate",
+            "enddate",
+            "status",
+            "employeephoto",
+            "employeenationalidalternatekey"
+        ]
+        return pd.DataFrame(columns=cols)
+
+    df = df_employee.copy()
+
+    # Lookup dim salesterritory to get surrogate key
+    try:
+        dim_territory = pd.read_sql("SELECT salesterritorykey, salesterritoryalternatekey FROM public.dimsalesterritory", target_engine)
+    except Exception:
+        dim_territory = pd.DataFrame(columns=["salesterritorykey", "salesterritoryalternatekey"])
+
+    if "salesterritory_bk" in df.columns and not dim_territory.empty:
+        df = df.merge(dim_territory, how="left", left_on="salesterritory_bk", right_on="salesterritoryalternatekey")
+        df.rename(columns={"salesterritorykey": "salesterritorykey"}, inplace=True)
+    else:
+        df["salesterritorykey"] = None
+
+    # Construir columnas finales
+    df_out = pd.DataFrame()
+    df_out["parentemployeekey"] = None
+    df_out["parentemployeenationalidalternatekey"] = None
+    df_out["salesterritorykey"] = df.get("salesterritorykey")
+    df_out["firstname"] = df.get("firstname")
+    df_out["lastname"] = df.get("lastname")
+    df_out["middlename"] = df.get("middlename")
+    df_out["namestyle"] = df.get("namestyle").fillna(False) if "namestyle" in df.columns else False
+    df_out["title"] = df.get("title")
+    df_out["hiredate"] = pd.to_datetime(df.get("hiredate"), errors="coerce")
+    df_out["birthdate"] = pd.to_datetime(df.get("birthdate"), errors="coerce")
+    df_out["loginid"] = df.get("loginid")
+    df_out["emailaddress"] = df.get("emailaddress")
+    df_out["phone"] = df.get("phone")
+    df_out["maritalstatus"] = df.get("maritalstatus")
+    df_out["salariedflag"] = df.get("salariedflag")
+    df_out["gender"] = df.get("gender")
+    df_out["currentflag"] = df.get("salariedflag").notna() if "salariedflag" in df.columns else True
+    df_out["status"] = df.get("status")
+    df_out["employeephoto"] = None
+    df_out["employeenationalidalternatekey"] = df.get("employeenationalidalternatekey")
+    df_out["emergencycontactname"] = df.get("emergencycontactname")
+    df_out["emergencycontactphone"] = df.get("emergencycontactphone")
+    df_out["payfrequency"] = df.get("payfrequency")
+    df_out["baserate"] = df.get("baserate")
+    df_out["vacationhours"] = df.get("vacationhours")
+    df_out["sickleavehours"] = df.get("sickleavehours")
+    df_out["salespersonflag"] = df.get("salespersonflag")
+    df_out["departmentname"] = df.get("departmentname")
+    df_out["startdate"] = pd.to_datetime(df.get("startdate"), errors="coerce")
+    df_out["enddate"] = pd.to_datetime(df.get("enddate"), errors="coerce")
+
+    # Reemplazar NaN por None para facilitar inserts
+    df_out = df_out.where(pd.notnull(df_out), None)
+
+    print("DimEmployee transformado.")
+    return df_out
+
 def transform_customer(df_customer: pd.DataFrame) -> pd.DataFrame:
     """Transforma datos de clientes al formato DimCustomer."""
     print("Transformando DimCustomer...")
