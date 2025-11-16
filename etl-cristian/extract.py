@@ -122,7 +122,7 @@ def extract_customer(source_engine: Engine, fecha: datetime | None = None) -> pd
         FROM sales.customer c
         LEFT JOIN person.person p ON c.personid = p.businessentityid
         LEFT JOIN person.emailaddress ea ON p.businessentityid = ea.businessentityid
-        LEFT JOIN person.address a ON a.addressid = c.customerid  -- puede cambiar según el modelo lógico
+        LEFT JOIN person.address a ON a.addressid = c.customerid
         WHERE p.demographics IS NOT NULL
     '''
     if fecha:
@@ -380,38 +380,56 @@ def extract_factsurveyresponse(source_engine: Engine, fecha: datetime | None = N
       - orderdate
     """
     q_base = '''
-        SELECT
-                c.accountnumber AS customer_bk,
-                pc.productcategoryid AS productcategory_bk,
-                pc.name AS englishproductcategoryname,
-                psc.productsubcategoryid AS productsubcategory_bk,
-                psc.name AS englishproductsubcategoryname,
-                soh.orderdate
-            FROM sales.customer c
-            JOIN sales.salesorderheader soh ON soh.customerid = c.customerid
-            JOIN sales.salesorderdetail sod ON sod.salesorderid = soh.salesorderid
-            JOIN production.product p ON p.productid = sod.productid
-            LEFT JOIN production.productsubcategory psc ON p.productsubcategoryid = psc.productsubcategoryid
-            LEFT JOIN production.productcategory pc ON psc.productcategoryid = pc.productcategoryid
+        SELECT 
+			TO_CHAR(soh.orderdate::date, 'YYYYMMDD')::integer AS datekey,
+			c.accountnumber AS customer_bk,
+			p3.productcategoryid as productcategory_bk,
+			p3."name" as englishproductcategoryname,
+			p2.productsubcategoryid as productsubcategory_bk,
+			p2."name" as englishproductsubcategoryname,
+			soh.orderdate
+        FROM sales.salesorderheader soh
+        LEFT JOIN sales.salesorderdetail sod 
+            ON soh.salesorderid = sod.salesorderid
+        INNER JOIN production.product p 
+            ON sod.productid = p.productid
+        INNER JOIN sales.customer c 
+            ON soh.customerid = c.customerid
+        INNER JOIN person.person pn
+            ON c.personid = pn.businessentityid AND pn.demographics IS NOT NULL
+       INNER JOIN production.productsubcategory p2
+            ON p.productsubcategoryid  = p2.productsubcategoryid
+       INNER JOIN production.productcategory p3
+            ON p2.productcategoryid  = p3.productcategoryid 
+       GROUP BY soh.orderdate, c.accountnumber, p3.productcategoryid, p2.productsubcategoryid
     '''
 
     # Aplicar filtro por fecha sobre orderdate si se indica
     if fecha:
         q_base = """
-        SELECT
-            c.accountnumber AS customer_bk,
-            pc.productcategoryid AS productcategory_bk,
-            pc.name AS englishproductcategoryname,
-            psc.productsubcategoryid AS productsubcategory_bk,
-            psc.name AS englishproductsubcategoryname,
-            soh.orderdate
-        FROM sales.customer c
-        JOIN sales.salesorderheader soh ON soh.customerid = c.customerid
-        JOIN sales.salesorderdetail sod ON sod.salesorderid = soh.salesorderid
-        JOIN production.product p ON p.productid = sod.productid
-        LEFT JOIN production.productsubcategory psc ON p.productsubcategoryid = psc.productsubcategoryid
-        LEFT JOIN production.productcategory pc ON psc.productcategoryid = pc.productcategoryid
-        WHERE soh.orderdate >= :fecha
+            SELECT 
+                TO_CHAR(soh.orderdate::date, 'YYYYMMDD')::integer AS datekey,
+                c.accountnumber AS customer_bk,
+                p3.productcategoryid as productcategory_bk,
+                p3."name" as englishproductcategoryname,
+                p2.productsubcategoryid as productsubcategory_bk,
+                p2."name" as englishproductsubcategoryname,
+                soh.orderdate::date as orderdate
+            FROM sales.salesorderheader soh
+            LEFT JOIN sales.salesorderdetail sod 
+                ON soh.salesorderid = sod.salesorderid
+            INNER JOIN production.product p 
+                ON sod.productid = p.productid
+            INNER JOIN sales.customer c 
+                ON soh.customerid = c.customerid
+            INNER JOIN person.person pn
+                ON c.personid = pn.businessentityid AND pn.demographics IS NOT NULL
+            INNER JOIN production.productsubcategory p2
+                    ON p.productsubcategoryid  = p2.productsubcategoryid
+            INNER JOIN production.productcategory p3
+                    ON p2.productcategoryid  = p3.productcategoryid 
+            WHERE soh.orderdate >= :fecha
+            GROUP BY soh.orderdate, c.accountnumber, p3.productcategoryid, p2.productsubcategoryid
         """
 
     try:

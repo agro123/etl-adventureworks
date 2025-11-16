@@ -247,7 +247,7 @@ if has_new_fact_data(conne=olap_conn, fact_table="factsurveyresponse", date_col=
     print('Transformando información para hecho FactSurveyResponse...')
     fact_survey = transform_factsurveyresponse(fact_survey, olap_conn)
     print('Cargando hecho FactSurveyResponse...')
-    # Usamos una llave compuesta para evitar duplicados: datekey+customer+category+subcategory
+    #save_dataframe_to_csv(fact_survey, 'fact_survey_response.csv')
     load_table(
         fact_survey,
         olap_conn,

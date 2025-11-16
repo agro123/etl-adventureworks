@@ -452,12 +452,13 @@ def transform_factsurveyresponse(df_survey: pd.DataFrame, target_engine: Engine)
     df = df.merge(dim_sub, how="left", left_on="productsubcategory_bk", right_on="productsubcategoryalternatekey")
 
     # Normalizar fecha y generar datekey
-    df["date"] = pd.to_datetime(df["orderdate"]) if "orderdate" in df.columns else pd.to_datetime(df.get("date", None))
-    df["datekey"] = df["date"].dt.strftime("%Y%m%d").astype(float).astype('Int64')
+    #df["date"] = pd.to_datetime(df["orderdate"]) if "orderdate" in df.columns else pd.to_datetime(df.get("date", None))
+    #df["datekey"] = df["date"].dt.strftime("%Y%m%d").astype(float).astype('Int64')
 
     df = df.rename(columns={
         "englishproductcategoryname_y": "englishproductcategoryname",
-        "englishproductsubcategoryname_y": "englishproductsubcategoryname"
+        "englishproductsubcategoryname_y": "englishproductsubcategoryname",
+        "orderdate": "date"
     })
 
     # Seleccionar columnas finales en el orden esperado
@@ -476,10 +477,10 @@ def transform_factsurveyresponse(df_survey: pd.DataFrame, target_engine: Engine)
     df = df.dropna(subset=["datekey", "customerkey", "productcategorykey", "productsubcategorykey"]).reset_index(drop=True)
 
     # Convertir tipos a enteros cuando aplique
-    """ df["datekey"] = df["datekey"].astype(int)
+    df["datekey"] = df["datekey"].astype(int)
     df["customerkey"] = df["customerkey"].astype(int)
     df["productcategorykey"] = df["productcategorykey"].astype(int)
-    df["productsubcategorykey"] = df["productsubcategorykey"].astype(int)  """
+    df["productsubcategorykey"] = df["productsubcategorykey"].astype(int) 
 
     print("FactSurveyResponse transformado con surrogate keys.")
     return df
