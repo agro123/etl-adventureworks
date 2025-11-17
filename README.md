@@ -1,44 +1,32 @@
 # CS_etl_py
-Python etl for a health care database 
-## Requirements installation 
- **if not exists environment create one**
-```
+ETL en Python para la migración, transformación y carga de datos desde **AdventureWorks 2022 (SQL Server)** hacia **PostgreSQL**.
 
+## Descripción
+Este proyecto implementa un proceso ETL que:
+
+1. **Extrae** datos desde la base de datos de ejemplo **AdventureWorks2022** restaurada en SQL Server.  
+2. **Transforma** los datos utilizando Python (limpieza, normalización, conversiones de tipos, etc.).  
+3. **Carga** los datos procesados en una base de datos **PostgreSQL** para su análisis o uso posterior.
+
+El objetivo es facilitar la migración y estandarización de datos entre ambas plataformas.
+
+---
+
+## Requisitos Previos
+- Python 3.8+  
+- SQL Server 2022 (solo para extracción)  
+- PostgreSQL 12+  
+- SQL Server Management Studio (SSMS)  
+- ODBC Driver: **ODBC Driver 17 for SQL Server**
+
+---
+
+## Instalación del Entorno
+
+### 1. Crear entorno virtual
+```bash
 python3 -m venv my_env
 
-#unix systems
-source my_env/bin/activate  
 
-#win
-python3 -m venv my_env
-
-#cmd.exe
-C:\> <venv>\Scripts\activate.bat
-
-#PowerShell
-PS C:\> <venv>\Scripts\Activate.ps1
-```
-your terminal should look like
-```
-(my_env) $
-```
-here you can install the packages by doing 
-```
-pip install -r requirements.txt
-```
-
-here you can install a missing package 
-```
-pip install psycopg2
-pip install psycopg2-binary
-```
-structure of config.yml 
-```
-nombre_conexion:
-  drivername: postgresql  
-  user: postgres # su username
-  password : valor_privado
-  port: 5432 # pordefecto 
-  host: localhost # la direccion a la base de datos
-  dbname: colombia_saludable #nombre de la base de datos
-```
+source my_env/bin/activate     # Linux/Mac
+.\my_env\Scripts\activate      # Windows
