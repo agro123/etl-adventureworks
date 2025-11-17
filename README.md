@@ -114,7 +114,4 @@ CS_etl_py/
 │── main.py
 │── README.md
 ```
-## Licencia
-Puedes agregar una licencia estándar como MIT o Apache 2.0 según tus necesidades.
-Puedes agregar una licencia estándar como MIT o Apache 2.0 según tus necesidades.
-```
+
