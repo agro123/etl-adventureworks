@@ -9,3 +9,6 @@ test*
 *.pyc
 venv/
 example/
+config.yml
+test_connection.py
+*.env
