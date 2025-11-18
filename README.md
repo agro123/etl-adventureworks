@@ -1,4 +1,4 @@
-# CS_etl_py
+# herramienta ETL 
 ETL en Python para la migración, transformación y carga de datos desde **AdventureWorks 2022 (SQL Server)** hacia **PostgreSQL**.
 
 ## Descripción
