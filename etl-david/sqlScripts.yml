@@ -1,0 +1,79 @@
+# a script to create the tables in the postgres scheme
+# so that it populates the data warehouse with the dimensions and facts.
+
+dim_date: create table dim_date
+  (
+  date_key integer not null
+  constraint dim_date_pk
+  primary key,
+  full_date_alternate_key          date,
+  day_number_of_week          integer,
+  english_day_name_of_week         text,
+  spanish_day_name_of_week         text,
+  french_day_name_of_week         text,
+  day_number_of_month       integer,
+  day_number_of_year   integer,
+  calendar_quarter  integer,
+  calendar_year     integer,
+  calendar_semester       integer,
+  fiscal_quarter      integer,
+  fiscal_year  integer,
+  fiscal_semester       integer
+
+  );
+
+dim_account: create table dim_account
+  (
+  account_key SERIAL not null
+  constraint dim_account_pk
+  primary key,
+  parent_account_key  int,
+  account_code_alternate_key  int,
+  account_description text,
+  account_type  text,
+  operator  text,
+  custom_members  text,
+  value_type  text
+  );
+
+dim_department_group: create table dim_department_group
+  (
+  department_group_key  serial not null
+  constraint dim_department_group_pk
+  primary key,
+  parent_departmentgroup_key  int,
+  departmentgroup_name  text
+  );
+
+dim_organization: create table dim_organization
+  (
+  organization_key SERIAL not null
+  constraint dim_organization_pk
+  primary key,
+  parent_organization_key text,
+  percentage_of_ownership REAL,
+  organization_name text,
+  currency_key  int
+  );
+
+dim_scenario: create table dim_scenario
+  (
+  scenario_key  SERIAL not null
+  constraint dim_scenario_pk
+  primary key,
+  scenario_name text
+  );
+
+fact_finance: create table fact_finance
+  (
+  finance_key SERIAL not null
+  constraint fact_finance_pk
+  primary key,
+  date_key  int REFERENCES public.dim_date(date_key),
+  organization_key  int REFERENCES public.dim_organization(organization_key),
+  department_group_key int REFERENCES public.dim_department_group(department_group_key),
+  scenario_key  int REFERENCES public.dim_scenario(scenario_key),
+  account_key int REFERENCES public.dim_account(account_key),
+  amount  REAL,
+  date  timestamp
+  );
