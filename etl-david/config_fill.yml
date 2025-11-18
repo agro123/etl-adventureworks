@@ -1,0 +1,17 @@
+ADVENTURE_DB:
+  drivername: postgresql
+  dbname: adventureworks
+  user: postgres
+  password: opensesame
+  host: 172.17.0.2
+  port: 5432
+
+ADVENTURE_DW:
+  drivername: postgresql
+  dbname: adventureworksdw
+  user: postgres
+  password: opensesame
+  host: 172.17.0.2
+  port: 5432
+
+LOAD_DIMENSIONS: True
