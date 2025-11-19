@@ -59,7 +59,7 @@ def main() -> None:
     dim_emp_raw = extract_dim_employee(src_engine)
     dim_curr_raw = extract_dim_currency(src_engine)
     dim_promo_raw = extract_dim_promotion(src_engine)
-    dim_date_raw = extract_dim_date(src_engine)
+    #dim_date_raw = extract_dim_date(src_engine)
     fact_reseller_raw = extract_fact_reseller_sales(src_engine)
 
     # ===========================

@@ -299,3 +299,13 @@ def etl_fact_quota():
         print('No hay datos nuevos. Proceso finalizado.')
     print('Finalizando proceso ETL para FactSalesQuota...')
 # FACT SALES QUOTA ETL PROCESS ============================== END
+
+def main() -> None:
+    etl_dimensions_factinternetsales()
+    etl_fact_internet_sales()
+    etl_fact_internet_sales_reason()
+    etl_fact_survey_response()
+    etl_fact_quota()
+
+if __name__ == "__main__":
+    main()
