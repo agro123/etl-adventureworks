@@ -21,6 +21,8 @@ from extract import (
     extract_salesreason,
     extract_fact_internet_sales_reason,
     extract_factsurveyresponse
+    ,
+    extract_reseller
 )
 from transform import (
     transform_product_category,
@@ -38,6 +40,7 @@ from transform import (
     transform_fact_internet_sales_reason,
     transform_factsurveyresponse,
     generate_dim_date,
+    transform_reseller,
 )
 from load import load_table
 import psycopg2
@@ -113,6 +116,10 @@ def etl_dimensions_factinternetsales():
         # Transform para dimEmployee
         dim_employee = transform_employee(dim_employee, olap_conn)
 
+        # Extract y transform para DimReseller
+        dim_reseller_raw = extract_reseller(oltp_conn)
+        dim_reseller = transform_reseller(dim_reseller_raw, olap_conn)
+
         # Generar la dimensión de fecha
         dim_date = generate_dim_date()
         # Load dimDate
@@ -186,6 +193,13 @@ def etl_dimensions_factinternetsales():
             olap_conn,
             "dimemployee",
             key_columns=["employeenationalidalternatekey"],
+        )
+        # Load dimReseller
+        load_table(
+            dim_reseller,
+            olap_conn,
+            "dimreseller",
+            key_columns=["reselleralternatekey"],
         )
         print('Fin carga de dimensiones...')
 #DIMENSIONES END ==============================

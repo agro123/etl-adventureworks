@@ -502,3 +502,67 @@ def extract_salesquota(source_engine: Engine, fecha: datetime | None = None) -> 
         except Exception as e:
             print(f"Error en extract_salesquota: {e}")
             return pd.DataFrame()
+
+
+def extract_reseller(source_engine: Engine, fecha: datetime | None = None) -> pd.DataFrame:
+    # Ahora obtenemos la información desde sales.customer + sales.store
+    # - reseller_accountnumber: sales.customer.accountnumber
+    # - reseller_name: sales.store.name (join via storeid)
+    # - demographics (XML) desde sales.store.demographics
+    # - dirección: person.businessentityaddress -> person.address (join usando store.businessentityid)
+    q_base = '''
+        WITH ranked AS (
+            SELECT
+                c.storeid,
+                c.accountnumber AS reseller_accountnumber,
+                s.businessentityid AS store_bk,
+                s.name AS reseller_name,
+                s.demographics AS demographics_xml,
+                a.addressline1,
+                a.addressline2,
+                p.phonenumber AS phone,
+                a.city,
+                a.postalcode,
+                c.modifieddate,
+                ROW_NUMBER() OVER (
+                    PARTITION BY c.accountnumber
+                    ORDER BY c.modifieddate ASC
+                ) AS rn
+            FROM sales.customer c
+            LEFT JOIN sales.store s ON c.storeid = s.businessentityid
+            LEFT JOIN person.businessentityaddress bea ON s.businessentityid = bea.businessentityid
+            LEFT JOIN person.address a ON bea.addressid = a.addressid
+            LEFT JOIN person.businessentitycontact bec ON s.businessentityid = bec.businessentityid
+            LEFT JOIN person.personphone p ON bec.personid = p.businessentityid
+            WHERE c.personid IS NULL
+        ),
+        orders AS (
+            SELECT  
+                c.storeid,
+                EXTRACT(MONTH FROM MAX(sh.orderdate)) AS ordermonth,
+                EXTRACT(YEAR  FROM MIN(sh.orderdate)) AS firstorderyear,
+                EXTRACT(YEAR  FROM MAX(sh.orderdate)) AS lastorderyear
+            FROM sales.salesorderheader sh 
+            INNER JOIN sales.customer c ON sh.customerid = c.customerid
+            GROUP BY c.storeid
+        )
+        SELECT 
+            r.*,
+            o.ordermonth,
+            o.firstorderyear,
+            o.lastorderyear
+        FROM ranked r
+        LEFT JOIN orders o ON r.storeid = o.storeid
+        WHERE r.rn = 1;
+    '''
+    if fecha:
+        q_base += " WHERE c.modifieddate >= :fecha;"
+    else:
+        q_base += ";"
+
+    try:
+        with source_engine.connect() as conn:
+            return pd.read_sql(text(q_base), conn, params={"fecha": fecha} if fecha else None)
+    except Exception as e:
+        print(f"Error en extract_reseller: {e}")
+        return pd.DataFrame()

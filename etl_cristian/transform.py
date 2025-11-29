@@ -1,5 +1,6 @@
 import pandas as pd
 from datetime import date
+import xml.etree.ElementTree as ET
 import numpy as np
 import holidays
 from deep_translator import GoogleTranslator
@@ -403,6 +404,187 @@ def transform_customer(df_customer: pd.DataFrame) -> pd.DataFrame:
     dim_customer = dim_customer.replace({np.nan: None})
     print("DimCustomer transformado.")
     return dim_customer
+
+
+def transform_reseller(df_reseller: pd.DataFrame, target_engine: Engine) -> pd.DataFrame:
+    """
+    Transforma el extract de vendedores (purchasing.vendor) al layout de `public.dimreseller`.
+    Se mapean los campos disponibles y se rellenan columnas faltantes con None o valores por defecto.
+    """
+    print("Transformando DimReseller...")
+    # Columnas objetivo según olap.sql (sin el surrogate key `resellerkey`)
+    cols = [
+        "geographykey",
+        "reselleralternatekey",
+        "phone",
+        "businesstype",
+        "resellername",
+        "numberemployees",
+        "orderfrequency",
+        "ordermonth",
+        "firstorderyear",
+        "lastorderyear",
+        "productline",
+        "addressline1",
+        "addressline2",
+        "annualsales",
+        "bankname",
+        "minpaymenttype",
+        "minpaymentamount",
+        "annualrevenue",
+        "yearopened",
+    ]
+
+    if df_reseller is None or df_reseller.empty:
+        print("No hay datos en df_reseller")
+        return pd.DataFrame(columns=cols)
+
+    df = df_reseller.copy()
+
+    # Normalizar nombres de columnas
+    lower_map = {c.lower(): c for c in df.columns}
+    acct_col = lower_map.get("reseller_accountnumber") or lower_map.get("accountnumber")
+    name_col = lower_map.get("reseller_name") or lower_map.get("name")
+    demo_col = lower_map.get("demographics_xml") or lower_map.get("demographics")
+    addr1_col = lower_map.get("addressline1")
+    addr2_col = lower_map.get("addressline2")
+    city_col = lower_map.get("city")
+    postal_col = lower_map.get("postalcode")
+
+    # Crear df_out con el mismo índice que el DF de entrada para evitar problemas de alignment
+    df_out = pd.DataFrame(index=df.index)
+    # Inicialmente geographykey será None; intentaremos resolverlo luego mediante lookup
+    df_out["geographykey"] = None
+    df_out["reselleralternatekey"] = df[acct_col].values if acct_col in df.columns else None
+
+    # Parsear XML de demographics para obtener varios campos
+    def parse_demo(xml_text: str) -> dict:
+        out = {
+            "annualrevenue": None,
+            "yearopened": None,
+            "bankname": None,
+            "annualsales": None,
+            "numberemployees": None,
+            "productline": None,
+            "businesstype_raw": None,
+        }
+        if not xml_text or pd.isna(xml_text):
+            return out
+        try:
+            root = ET.fromstring(xml_text)
+        except Exception:
+            return out
+
+        # Buscar por etiquetas conocidas (case-insensitive)
+        for child in root.iter():
+            tag = child.tag.lower()
+            text = child.text.strip() if child.text else None
+            if not text:
+                continue
+            if tag.endswith("annualrevenue"):
+                try:
+                    out["annualrevenue"] = float(text.replace("$", "").replace(",", ""))
+                except Exception:
+                    out["annualrevenue"] = None
+            elif tag.endswith("yearopened") or tag.endswith("yearopened"):
+                try:
+                    out["yearopened"] = int(text)
+                except Exception:
+                    out["yearopened"] = None
+            elif tag.endswith("bankname"):
+                out["bankname"] = text
+            elif tag.endswith("annualsales"):
+                try:
+                    out["annualsales"] = float(text.replace("$", "").replace(",", ""))
+                except Exception:
+                    out["annualsales"] = None
+            elif tag.endswith("numberemployees"):
+                try:
+                    out["numberemployees"] = int(text)
+                except Exception:
+                    out["numberemployees"] = None
+            elif tag.endswith("specialty") or tag.endswith("productline"):
+                out["productline"] = text
+            elif tag.endswith("businesstype"):
+                out["businesstype_raw"] = text
+
+        return out
+
+    demo_parsed = df[demo_col].apply(lambda x: parse_demo(x) if demo_col in df.columns else {
+        "annualrevenue": None,
+        "yearopened": None,
+        "bankname": None,
+        "annualsales": None,
+        "numberemployees": None,
+        "productline": None,
+        "businesstype_raw": None,
+    })
+    demo_df = pd.DataFrame(list(demo_parsed))
+
+    # Mapear business type codes
+    bt_map = {"OS": "Warehouse", "BS": "Specialty Bike Shop", "BM": "Value Added Reseller"}
+
+    df_out["businesstype"] = demo_df["businesstype_raw"].map(lambda v: bt_map.get(v.strip(), v) if isinstance(v, str) else None)
+    df_out["resellername"] = df[name_col] if name_col in df.columns else None
+
+    # Mapear order frecuency codes
+    of_map = {
+        'BM': 'S',
+        'BS': 'A',
+        'OS': 'Q'
+    }
+
+    # Mapear campos extraídos del XML
+    df_out["numberemployees"] = demo_df["numberemployees"].astype(object)
+    df_out["orderfrequency"] = df_out['businesstype'].map(of_map)
+    df_out["ordermonth"] = df_reseller['ordermonth']
+    df_out["firstorderyear"] = df_reseller['firstorderyear']
+    df_out["lastorderyear"] = df_reseller['lastorderyear']
+    df_out["productline"] = demo_df["productline"]
+    df_out["addressline1"] = df[addr1_col] if addr1_col in df.columns else None
+    df_out["addressline2"] = df[addr2_col] if addr2_col in df.columns else None
+    df_out["annualsales"] = demo_df["annualsales"].astype(object)
+    df_out["bankname"] = demo_df["bankname"]
+    df_out["minpaymenttype"] = None
+    df_out["minpaymentamount"] = None
+    df_out["annualrevenue"] = demo_df["annualrevenue"].astype(object)
+    df_out["yearopened"] = demo_df["yearopened"].astype(object)
+    df_out['phone'] = df_reseller['phone']
+    
+    # Resolver geographykey a partir de city+postalcode (si están disponibles)
+    if city_col in df.columns and postal_col in df.columns:
+        df_addr = df[[city_col, postal_col]].copy()
+        df_addr = df_addr.rename(columns={city_col: "city", postal_col: "postalcode"})
+        # Normalizar para matching
+        df_addr["city"] = df_addr["city"].astype(str).str.strip().str.lower()
+        df_addr["postalcode"] = df_addr["postalcode"].astype(str).str.strip()
+
+        # Cargar dimgeography para lookup y normalizar
+        try:
+            dim_geo = pd.read_sql("SELECT geographykey, city, postalcode FROM public.dimgeography", target_engine)
+            dim_geo["city"] = dim_geo["city"].astype(str).str.strip().str.lower()
+            dim_geo["postalcode"] = dim_geo["postalcode"].astype(str).str.strip()
+        except Exception:
+            dim_geo = pd.DataFrame(columns=["geographykey", "city", "postalcode"])
+
+        if not dim_geo.empty:
+            # Deduplicar la dimensión a una sola fila por (city, postalcode)
+            dim_geo_unique = dim_geo.drop_duplicates(subset=["city", "postalcode"], keep="first")[["city", "postalcode", "geographykey"]]
+            # Hacer un merge left que no expandirá filas (dim_geo_unique tiene keys únicas)
+            merged = df_addr.merge(dim_geo_unique, how="left", on=["city", "postalcode"])
+            # Asignar geographykey garantizando la misma longitud que df
+            df_out["geographykey"] = merged["geographykey"].values
+        else:
+            df_out["geographykey"] = None
+    else:
+        df_out["geographykey"] = None
+
+    # Asegurar orden y reemplazar NaN por None
+    df_out = df_out[cols]
+    df_out = df_out.where(pd.notnull(df_out), None)
+
+    print("DimReseller transformado.")
+    return df_out
 
 def transform_fact_internet_sales(df_fact: pd.DataFrame, target_engine: Engine) -> pd.DataFrame:
     if df_fact.empty:
