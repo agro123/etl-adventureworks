@@ -23,6 +23,8 @@ from extract import (
     extract_factsurveyresponse
     ,
     extract_reseller
+    ,
+    extract_fact_resellers
 )
 from transform import (
     transform_product_category,
@@ -41,6 +43,7 @@ from transform import (
     transform_factsurveyresponse,
     generate_dim_date,
     transform_reseller,
+    transform_fact_resellers,
 )
 from load import load_table
 import psycopg2
@@ -314,12 +317,30 @@ def etl_fact_quota():
     print('Finalizando proceso ETL para FactSalesQuota...')
 # FACT SALES QUOTA ETL PROCESS ============================== END
 
+
+def etl_fact_reseller_sales():
+    print('Iniciando proceso ETL para FactResellerSales...')
+    if has_new_fact_data(conne=olap_conn, fact_table="factresellersales"):
+        print('Se detectaron datos nuevos en el origen. Iniciando extracción...')
+
+        print('Extrayendo información para hecho FactResellerSales...')
+        fact_resellers = extract_fact_resellers(oltp_conn)
+        print('Transformando información para hecho FactResellerSales...')
+        fact_resellers = transform_fact_resellers(fact_resellers, olap_conn)
+        print('Cargando hecho FactResellerSales...')
+        #save_dataframe_to_csv(fact_resellers, 'factResellerSales.csv')
+        load_table(
+            fact_resellers,
+            olap_conn,
+            "factresellersales",
+            key_columns=["salesordernumber", "salesorderlinenumber"],
+        )
+    else:
+        print('No hay datos nuevos. Proceso finalizado.')
+    print('Finalizando proceso ETL para FactResellerSales...')
+
 def main() -> None:
-    etl_dimensions_factinternetsales()
-    etl_fact_internet_sales()
-    etl_fact_internet_sales_reason()
-    etl_fact_survey_response()
-    etl_fact_quota()
+    etl_fact_reseller_sales()
 
 if __name__ == "__main__":
     main()

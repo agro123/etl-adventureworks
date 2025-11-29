@@ -15,7 +15,8 @@ from etl_cristian.extract import (
     extract_geography,
     extract_employee,
     extract_fact_internet_sales,
-    extract_reseller
+    extract_reseller,
+    extract_fact_resellers
 )
 from etl_cristian.transform import (
     transform_product_category,
@@ -30,6 +31,7 @@ from etl_cristian.transform import (
     transform_fact_internet_sales,
     generate_dim_date,
     transform_reseller,
+    transform_fact_resellers
 )
 from etl_cristian.load import load_table
 
@@ -192,6 +194,24 @@ def etl_internet_sales(oltp_conn: Engine, olap_conn: Engine):
     
     return True
 
+def etl_reseller_sales(oltp_conn: Engine, olap_conn: Engine):
+    print('Iniciando proceso ETL para factResellerSales...')
+    print('Extrayendo información para factResellerSales...')
+    fact_reseller_sales_raw = extract_fact_resellers(oltp_conn)
+    print('Transformando información para factResellerSales...')
+    fact_reseller_sales = transform_fact_resellers(fact_reseller_sales_raw, olap_conn)
+    print('Cargando factResellerSales...')
+    #save_dataframe_to_csv(fact_reseller_sales, 'factResellerSales.csv')
+    load_table(
+        fact_reseller_sales,
+        olap_conn,
+        "factresellersales",
+        key_columns=["salesordernumber", "salesorderlinenumber"],
+    )
+    print('Finalizando proceso ETL para factResellerSales...')
+    
+    return True
+
 if __name__ == "__main__":
     with open('../config.yml', 'r') as f:
         config = yaml.safe_load(f)
@@ -211,6 +231,8 @@ if __name__ == "__main__":
         print("Unable to connect to ETL database. Exiting.")
         sys.exit(1)
 
-    if config['LOAD_DIMENSIONS']:
-        etl_dimensions(oltp_conn, olap_conn)
-    etl_internet_sales(oltp_conn, olap_conn)
+    #if config['LOAD_DIMENSIONS']:
+        #etl_dimensions(oltp_conn, olap_conn)
+
+    #etl_internet_sales(oltp_conn, olap_conn)
+    etl_reseller_sales(oltp_conn, olap_conn)

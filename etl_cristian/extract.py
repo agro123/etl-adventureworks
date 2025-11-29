@@ -514,7 +514,7 @@ def extract_reseller(source_engine: Engine, fecha: datetime | None = None) -> pd
         WITH ranked AS (
             SELECT
                 c.storeid,
-                c.accountnumber AS reseller_accountnumber,
+                e.accountnumber AS reseller_accountnumber,
                 s.businessentityid AS store_bk,
                 s.name AS reseller_name,
                 s.demographics AS demographics_xml,
@@ -565,4 +565,68 @@ def extract_reseller(source_engine: Engine, fecha: datetime | None = None) -> pd
             return pd.read_sql(text(q_base), conn, params={"fecha": fecha} if fecha else None)
     except Exception as e:
         print(f"Error en extract_reseller: {e}")
+        return pd.DataFrame()
+    
+def extract_fact_resellers(source_engine: Engine, fecha: datetime | None = None) -> pd.DataFrame:
+    q_base = '''
+        SELECT 
+            soh.salesorderid, -- N
+            p.productnumber AS product_bk, -- k
+            TO_CHAR(soh.orderdate::date, 'YYYYMMDD')::integer AS orderdatekey, --k
+            TO_CHAR(soh.duedate::date, 'YYYYMMDD')::integer AS duedatekey, --k
+            TO_CHAR(soh.shipdate::date, 'YYYYMMDD')::integer AS shipdatekey, --k
+            resellers.accountnumber as resellerkey,-- resellerKey,
+            employee.nationalidnumber  as employeekey, -- EmployeeKey,
+            sod.specialofferid AS promotion_bk, -- k
+            COALESCE(cr.tocurrencycode, 'USD') AS currency_bk,  -- k
+            soh.territoryid AS salesterritory_bk, -- k
+            soh.salesordernumber, -- PK
+            (CASE 
+			    WHEN soh.revisionnumber = 8 THEN 1
+			    ELSE 2
+			END) AS revisionnumber, --
+            sod.orderqty AS orderquantity, --
+            sod.unitprice, --
+            sod.linetotal AS extendedamount, --
+            sod.unitpricediscount AS unitpricediscountpct,--
+            (sod.unitprice * sod.orderqty * sod.unitpricediscount) AS discountamount, --
+            p.standardcost AS productstandardcost, --
+            (p.standardcost * sod.orderqty) AS totalproductcost, --
+            sod.linetotal AS salesamount,  --
+            soh.taxamt, --
+            soh.freight, --
+            sod.carriertrackingnumber, --
+            soh.purchaseordernumber AS customerponumber, --
+            soh.orderdate, --
+            soh.duedate, -- 
+            soh.shipdate,-- 
+            soh.modifieddate
+        from
+            sales.salesorderdetail sod
+        INNER JOIN sales.salesorderheader soh
+		    ON sod.salesorderid = soh.salesorderid
+		INNER JOIN sales.customer c 
+		    ON soh.customerid = c.customerid 
+		    AND c.personid IS NOT NULL       -- cliente persona
+		INNER JOIN humanresources.employee employee
+		    ON soh.salespersonid = employee.businessentityid
+		INNER JOIN production.product p 
+		    ON sod.productid = p.productid
+		LEFT JOIN sales.currencyrate cr
+		    ON soh.currencyrateid = cr.currencyrateid
+		LEFT JOIN sales.customer resellers     -- reseller es otro customer
+		    ON c.storeid = resellers.storeid
+		    AND resellers.personid IS NULL
+        ORDER BY soh.salesordernumber ASC;
+    '''
+    if fecha:
+        q_base += " WHERE soh.modifieddate >= :fecha;"
+    else:
+        q_base += ";"
+
+    try:
+        with source_engine.connect() as conn:
+            return pd.read_sql(text(q_base), conn, params={"fecha": fecha} if fecha else None)
+    except Exception as e:
+        print(f"Error en extract_fact_resellers: {e}")
         return pd.DataFrame()

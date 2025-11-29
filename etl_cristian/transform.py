@@ -744,6 +744,180 @@ def transform_fact_internet_sales_reason(df_fact_reason: pd.DataFrame, target_en
 
     return df_fact_reason
 
+
+def transform_fact_resellers(df_fact: pd.DataFrame, target_engine: Engine) -> pd.DataFrame:
+    """
+    Transforma el extract `extract_fact_resellers` al layout de `public.factresellersales`.
+    Realiza lookups a dimensiones: product, reseller (dimreseller), employee (dimemployee), promotion,
+    currency y salesterritory para resolver surrogate keys.
+    """
+    if df_fact is None or df_fact.empty:
+        print("DF de ventas de reseller vacío.")
+        return pd.DataFrame()
+
+    df = df_fact.copy()
+
+    # Cargar dimensiones para lookups
+    try:
+        dim_product = pd.read_sql("SELECT productkey, productalternatekey FROM public.dimproduct", target_engine)
+    except Exception:
+        dim_product = pd.DataFrame(columns=["productkey", "productalternatekey"])
+
+    try:
+        dim_reseller = pd.read_sql("SELECT resellerkey, reselleralternatekey FROM public.dimreseller", target_engine)
+    except Exception:
+        dim_reseller = pd.DataFrame(columns=["resellerkey", "reselleralternatekey"])
+
+    try:
+        dim_emp = pd.read_sql("SELECT employeekey, employeenationalidalternatekey FROM public.dimemployee", target_engine)
+    except Exception:
+        dim_emp = pd.DataFrame(columns=["employeekey", "employeenationalidalternatekey"])
+
+    try:
+        dim_promo = pd.read_sql("SELECT promotionkey, promotionalternatekey FROM public.dimpromotion", target_engine)
+    except Exception:
+        dim_promo = pd.DataFrame(columns=["promotionkey", "promotionalternatekey"])
+
+    try:
+        dim_currency = pd.read_sql("SELECT currencykey, currencyalternatekey FROM public.dimcurrency", target_engine)
+    except Exception:
+        dim_currency = pd.DataFrame(columns=["currencykey", "currencyalternatekey"])
+
+    try:
+        dim_terr = pd.read_sql("SELECT salesterritorykey, salesterritoryalternatekey FROM public.dimsalesterritory", target_engine)
+    except Exception:
+        dim_terr = pd.DataFrame(columns=["salesterritorykey", "salesterritoryalternatekey"])
+
+    # LOOKUP PRODUCT
+    if not dim_product.empty and "product_bk" in df.columns:
+        df = df.merge(dim_product, how="left", left_on="product_bk", right_on="productalternatekey")
+        # rename productkey column to expected name
+        df.rename(columns={"productkey": "productkey"}, inplace=True)
+    else:
+        df["productkey"] = None
+
+    # LOOKUP RESELLER (match accountnumber -> reselleralternatekey)
+    if not dim_reseller.empty and "resellerkey" in df.columns:
+        df = df.merge(dim_reseller, how="left", left_on="resellerkey", right_on="reselleralternatekey")
+        df.rename(columns={"resellerkey": "resellerkey"}, inplace=True)
+        # after merge we have column `resellerkey` from dim and original `resellerkey` from extract; keep dim's
+        if "resellerkey_y" in df.columns:
+            df["resellerkey"] = df["resellerkey_y"]
+    else:
+        df["resellerkey"] = None
+
+    # LOOKUP EMPLOYEE (employeenationalidalternatekey)
+    if not dim_emp.empty and "employeekey" in df.columns:
+        df = df.merge(dim_emp, how="left", left_on="employeekey", right_on="employeenationalidalternatekey")
+        if "employeekey_y" in df.columns:
+            df["employeekey"] = df["employeekey_y"]
+    else:
+        df["employeekey"] = None
+
+    # LOOKUP PROMOTION
+    if not dim_promo.empty and "promotion_bk" in df.columns:
+        df = df.merge(dim_promo, how="left", left_on="promotion_bk", right_on="promotionalternatekey")
+        if "promotionkey_y" in df.columns:
+            df["promotionkey"] = df["promotionkey_y"]
+    else:
+        df["promotionkey"] = None
+
+    # LOOKUP CURRENCY
+    if not dim_currency.empty and "currency_bk" in df.columns:
+        df = df.merge(dim_currency, how="left", left_on="currency_bk", right_on="currencyalternatekey")
+        if "currencykey_y" in df.columns:
+            df["currencykey"] = df["currencykey_y"]
+    else:
+        df["currencykey"] = None
+
+    # LOOKUP TERRITORY
+    if not dim_terr.empty and "salesterritory_bk" in df.columns:
+        df = df.merge(dim_terr, how="left", left_on="salesterritory_bk", right_on="salesterritoryalternatekey")
+        if "salesterritorykey_y" in df.columns:
+            df["salesterritorykey"] = df["salesterritorykey_y"]
+    else:
+        df["salesterritorykey"] = None
+
+    # Generar salesorderlinenumber por orden
+    df["salesorderlinenumber"] = (
+        df.sort_values(["salesordernumber"]) 
+          .groupby("salesordernumber")
+          .cumcount() + 1
+    )
+
+    # columnas finales esperadas
+    cols_to_keep = [
+        "productkey",
+        "orderdatekey",
+        "duedatekey",
+        "shipdatekey",
+        "resellerkey",
+        "employeekey",
+        "promotionkey",
+        "currencykey",
+        "salesterritorykey",
+        "salesordernumber",
+        "salesorderlinenumber",
+        "revisionnumber",
+        "orderquantity",
+        "unitprice",
+        "extendedamount",
+        "unitpricediscountpct",
+        "discountamount",
+        "productstandardcost",
+        "totalproductcost",
+        "salesamount",
+        "taxamt",
+        "freight",
+        "carriertrackingnumber",
+        "customerponumber",
+        "orderdate",
+        "duedate",
+        "shipdate",
+        "saved"
+    ]
+
+    df["saved"] = date.today()
+
+    # Seleccionar columnas (asegurar que existan)
+    for c in cols_to_keep:
+        if c not in df.columns:
+            df[c] = None
+
+    df_out = df[cols_to_keep].copy()
+
+    # Eliminar filas sin surrogate keys críticas
+    df_out.dropna(subset=[
+        "productkey",
+        "orderdatekey",
+        "resellerkey",
+        "employeekey",
+        "currencykey"
+    ], inplace=True)
+
+    # Convertir tipos cuando aplique
+    try:
+        df_out["productkey"] = df_out["productkey"].astype(int)
+    except Exception:
+        pass
+    try:
+        df_out["resellerkey"] = df_out["resellerkey"].astype(int)
+    except Exception:
+        pass
+    try:
+        df_out["employeekey"] = df_out["employeekey"].astype(int)
+    except Exception:
+        pass
+    try:
+        df_out["currencykey"] = df_out["currencykey"].astype(int)
+    except Exception:
+        pass
+
+    df_out = df_out.where(pd.notnull(df_out), None)
+
+    print("FactResellerSales transformado con surrogate keys.")
+    return df_out
+
 def transform_factsurveyresponse(df_survey: pd.DataFrame, target_engine: Engine) -> pd.DataFrame:
     """
     Transforma el extract de survey response al layout de public.factsurveyresponse
