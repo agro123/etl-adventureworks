@@ -105,10 +105,11 @@ Este proceso realiza:
 
 ```
 CS_etl_py/
-│── etl/
+│── etl_cristian/
 │   ├── extract.py
 │   ├── transform.py
 │   ├── load.py
+|   ├── utils.py
 │── config.yml
 │── requirements.txt
 │── main.py
